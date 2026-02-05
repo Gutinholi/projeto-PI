@@ -40,6 +40,7 @@ import json
 #   - temperatura: Temperatura atual em graus Celsius
 #   - probabilidade_chuva: Probabilidade de precipitação na hora atual (%)
 #   - precipitacao_proxima_hora: Precipitação esperada na próxima hora (mm)
+#   - historico: Lista de eventos registrados (alagamentos confirmados, normalizações)
 
 bairros_guaruja = [
     {
@@ -53,7 +54,8 @@ bairros_guaruja = [
         "chuva_real": 0.0,
         "temperatura": 0.0,
         "probabilidade_chuva": 0,
-        "precipitacao_proxima_hora": 0.0
+        "precipitacao_proxima_hora": 0.0,
+        "historico": []
     },
     {
         "id": 2,
@@ -66,7 +68,8 @@ bairros_guaruja = [
         "chuva_real": 0.0,
         "temperatura": 0.0,
         "probabilidade_chuva": 0,
-        "precipitacao_proxima_hora": 0.0
+        "precipitacao_proxima_hora": 0.0,
+        "historico": []
     },
     {
         "id": 3,
@@ -79,7 +82,8 @@ bairros_guaruja = [
         "chuva_real": 0.0,
         "temperatura": 0.0,
         "probabilidade_chuva": 0,
-        "precipitacao_proxima_hora": 0.0
+        "precipitacao_proxima_hora": 0.0,
+        "historico": []
     },
     {
         "id": 4,
@@ -92,7 +96,8 @@ bairros_guaruja = [
         "chuva_real": 0.0,
         "temperatura": 0.0,
         "probabilidade_chuva": 0,
-        "precipitacao_proxima_hora": 0.0
+        "precipitacao_proxima_hora": 0.0,
+        "historico": []
     },
     {
         "id": 5,
@@ -105,7 +110,8 @@ bairros_guaruja = [
         "chuva_real": 0.0,
         "temperatura": 0.0,
         "probabilidade_chuva": 0,
-        "precipitacao_proxima_hora": 0.0
+        "precipitacao_proxima_hora": 0.0,
+        "historico": []
     },
     {
         "id": 6,
@@ -118,7 +124,8 @@ bairros_guaruja = [
         "chuva_real": 0.0,
         "temperatura": 0.0,
         "probabilidade_chuva": 0,
-        "precipitacao_proxima_hora": 0.0
+        "precipitacao_proxima_hora": 0.0,
+        "historico": []
     },
     {
         "id": 7,
@@ -131,7 +138,8 @@ bairros_guaruja = [
         "chuva_real": 0.0,
         "temperatura": 0.0,
         "probabilidade_chuva": 0,
-        "precipitacao_proxima_hora": 0.0
+        "precipitacao_proxima_hora": 0.0,
+        "historico": []
     },
     {
         "id": 8,
@@ -144,7 +152,8 @@ bairros_guaruja = [
         "chuva_real": 0.0,
         "temperatura": 0.0,
         "probabilidade_chuva": 0,
-        "precipitacao_proxima_hora": 0.0
+        "precipitacao_proxima_hora": 0.0,
+        "historico": []
     },
     {
         "id": 9,
@@ -157,7 +166,8 @@ bairros_guaruja = [
         "chuva_real": 0.0,
         "temperatura": 0.0,
         "probabilidade_chuva": 0,
-        "precipitacao_proxima_hora": 0.0
+        "precipitacao_proxima_hora": 0.0,
+        "historico": []
     },
     {
         "id": 10,
@@ -170,7 +180,8 @@ bairros_guaruja = [
         "chuva_real": 0.0,
         "temperatura": 0.0,
         "probabilidade_chuva": 0,
-        "precipitacao_proxima_hora": 0.0
+        "precipitacao_proxima_hora": 0.0,
+        "historico": []
     },
     {
         "id": 11,
@@ -183,7 +194,8 @@ bairros_guaruja = [
         "chuva_real": 0.0,
         "temperatura": 0.0,
         "probabilidade_chuva": 0,
-        "precipitacao_proxima_hora": 0.0
+        "precipitacao_proxima_hora": 0.0,
+        "historico": []
     },
     {
         "id": 12,
@@ -196,7 +208,8 @@ bairros_guaruja = [
         "chuva_real": 0.0,
         "temperatura": 0.0,
         "probabilidade_chuva": 0,
-        "precipitacao_proxima_hora": 0.0
+        "precipitacao_proxima_hora": 0.0,
+        "historico": []
     },
     {
         "id": 13,
@@ -209,7 +222,8 @@ bairros_guaruja = [
         "chuva_real": 0.0,
         "temperatura": 0.0,
         "probabilidade_chuva": 0,
-        "precipitacao_proxima_hora": 0.0
+        "precipitacao_proxima_hora": 0.0,
+        "historico": []
     },
     {
         "id": 14,
@@ -222,7 +236,8 @@ bairros_guaruja = [
         "chuva_real": 0.0,
         "temperatura": 0.0,
         "probabilidade_chuva": 0,
-        "precipitacao_proxima_hora": 0.0
+        "precipitacao_proxima_hora": 0.0,
+        "historico": []
     },
     {
         "id": 15,
@@ -235,7 +250,8 @@ bairros_guaruja = [
         "chuva_real": 0.0,
         "temperatura": 0.0,
         "probabilidade_chuva": 0,
-        "precipitacao_proxima_hora": 0.0
+        "precipitacao_proxima_hora": 0.0,
+        "historico": []
     }
 ]
 

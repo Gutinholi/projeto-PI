@@ -517,6 +517,43 @@ def obter_cor_rgb_status(status):
     return mapeamento_cores_rgb.get(status, [128, 128, 128, 200])
 
 
+def registrar_evento_historico(bairro, tipo_evento, detalhes=""):
+    """
+    Registra um evento no histórico do bairro.
+
+    Parâmetros:
+        bairro (dict): Dicionário do bairro a ser atualizado
+        tipo_evento (str): Tipo do evento (ex: "ALAGAMENTO_CONFIRMADO", "NORMALIZADO")
+        detalhes (str): Informações adicionais sobre o evento
+
+    Estrutura do evento:
+        {
+            "data": "2026-02-05",
+            "hora": "14:30:45",
+            "tipo": "ALAGAMENTO_CONFIRMADO",
+            "detalhes": "Confirmado por 5 votos da comunidade"
+        }
+    """
+    # Garante que o bairro tenha o campo historico
+    if "historico" not in bairro:
+        bairro["historico"] = []
+
+    # Cria o registro do evento
+    evento = {
+        "data": datetime.now().strftime("%Y-%m-%d"),
+        "hora": datetime.now().strftime("%H:%M:%S"),
+        "tipo": tipo_evento,
+        "detalhes": detalhes
+    }
+
+    # Adiciona ao início da lista (eventos mais recentes primeiro)
+    bairro["historico"].insert(0, evento)
+
+    # Limita o histórico aos últimos 50 eventos por bairro
+    if len(bairro["historico"]) > 50:
+        bairro["historico"] = bairro["historico"][:50]
+
+
 # =============================================================================
 # FUNÇÃO PRINCIPAL - RENDERIZAÇÃO DA APLICAÇÃO
 # =============================================================================
@@ -635,6 +672,13 @@ def main():
             # Botão para resetar todos os votos
             if st.button("🗑️ Resetar Votos", use_container_width=True):
                 for bairro in dados:
+                    # Registra normalização se estava alagado
+                    if bairro["status"] == "ALAGADO CONFIRMADO":
+                        registrar_evento_historico(
+                            bairro,
+                            "NORMALIZADO",
+                            "Status resetado pelo administrador"
+                        )
                     bairro["votos"] = 0
                     bairro["status"] = "Normal"
                     bairro["risco"] = "Baixo"
@@ -753,6 +797,12 @@ def main():
         if bairro_atual["votos"] >= LIMITE_VOTOS_ALAGAMENTO:
             bairro_atual["status"] = "ALAGADO CONFIRMADO"
             bairro_atual["risco"] = "Crítico"
+            # Registra o evento no histórico
+            registrar_evento_historico(
+                bairro_atual,
+                "ALAGAMENTO_CONFIRMADO",
+                f"Confirmado por {LIMITE_VOTOS_ALAGAMENTO} votos da comunidade"
+            )
             st.toast("🚨 ALAGAMENTO CONFIRMADO pela comunidade!", icon="⚠️")
         else:
             if bairro_atual["status"] == "Normal":
@@ -775,7 +825,7 @@ def main():
     # =========================================================================
     st.markdown("---")
 
-    tab_previsao, tab_mapa, tab_todos = st.tabs(["📈 Previsão 24h", "🗺️ Mapa", "📋 Todos os Bairros"])
+    tab_previsao, tab_mapa, tab_todos, tab_historico = st.tabs(["📈 Previsão 24h", "🗺️ Mapa", "📋 Todos os Bairros", "📜 Histórico"])
 
     # ----- ABA 1: PREVISÃO HORÁRIA -----
     with tab_previsao:
@@ -1020,6 +1070,78 @@ def main():
 
         df_resumo = pd.DataFrame(dados_tabela)
         st.dataframe(df_resumo, hide_index=True)
+
+    # ----- ABA 4: HISTÓRICO DE ALAGAMENTOS -----
+    with tab_historico:
+        st.markdown("### 📜 Histórico de Alagamentos")
+        st.caption("Registro de todos os alagamentos confirmados pela comunidade")
+
+        # Coleta todos os eventos de todos os bairros
+        todos_eventos = []
+        for bairro in dados:
+            historico = bairro.get("historico", [])
+            for evento in historico:
+                todos_eventos.append({
+                    "bairro": bairro["nome"],
+                    "data": evento.get("data", ""),
+                    "hora": evento.get("hora", ""),
+                    "tipo": evento.get("tipo", ""),
+                    "detalhes": evento.get("detalhes", "")
+                })
+
+        if todos_eventos:
+            # Ordena por data e hora (mais recentes primeiro)
+            todos_eventos.sort(key=lambda x: (x["data"], x["hora"]), reverse=True)
+
+            # Estatísticas rápidas
+            total_alagamentos = sum(1 for e in todos_eventos if e["tipo"] == "ALAGAMENTO_CONFIRMADO")
+            total_normalizacoes = sum(1 for e in todos_eventos if e["tipo"] == "NORMALIZADO")
+
+            col_stat1, col_stat2 = st.columns(2)
+            with col_stat1:
+                st.metric("🚨 Alagamentos Registrados", total_alagamentos)
+            with col_stat2:
+                st.metric("✅ Normalizações", total_normalizacoes)
+
+            st.markdown("---")
+
+            # Timeline de eventos
+            for evento in todos_eventos:
+                # Define ícone e cor baseado no tipo de evento
+                if evento["tipo"] == "ALAGAMENTO_CONFIRMADO":
+                    icone = "🚨"
+                    cor_borda = "#dc3545"
+                    titulo = "Alagamento Confirmado"
+                elif evento["tipo"] == "NORMALIZADO":
+                    icone = "✅"
+                    cor_borda = "#28a745"
+                    titulo = "Situação Normalizada"
+                else:
+                    icone = "📝"
+                    cor_borda = "#6c757d"
+                    titulo = evento["tipo"]
+
+                # Card do evento
+                st.markdown(f"""
+                    <div style="
+                        border-left: 4px solid {cor_borda};
+                        padding: 10px 15px;
+                        margin-bottom: 10px;
+                        background: rgba(0,0,0,0.05);
+                        border-radius: 0 8px 8px 0;
+                    ">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-weight: bold;">{icone} {titulo}</span>
+                            <small style="color: gray;">{evento["data"]} às {evento["hora"]}</small>
+                        </div>
+                        <div style="margin-top: 5px;">
+                            <strong>📍 {evento["bairro"]}</strong>
+                        </div>
+                        <small style="color: gray;">{evento["detalhes"]}</small>
+                    </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("📭 Nenhum evento registrado ainda. O histórico será preenchido quando alagamentos forem confirmados pela comunidade.")
 
     # =========================================================================
     # RODAPÉ DA APLICAÇÃO
