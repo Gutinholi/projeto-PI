@@ -270,6 +270,57 @@ def buscar_clima_api(lat, lon):
         return {"chuva": 0.0, "temperatura": 0.0, "probabilidade_chuva": 0, "precipitacao_proxima_hora": 0.0}
 
 
+@st.cache_data(ttl=CACHE_TTL_SEGUNDOS, show_spinner=False)
+def buscar_previsao_horaria(lat, lon):
+    """
+    Busca previsão horária de precipitação para as próximas 24 horas.
+
+    Utilizado para gerar o gráfico de previsão de chuva.
+
+    Parâmetros:
+        lat (float): Latitude do local
+        lon (float): Longitude do local
+
+    Retorno:
+        dict: Dicionário com listas de horas, precipitação e probabilidade
+    """
+    parametros = {
+        "latitude": lat,
+        "longitude": lon,
+        "hourly": "precipitation,precipitation_probability",
+        "timezone": "America/Sao_Paulo",
+        "forecast_days": 1
+    }
+
+    try:
+        resposta = requests.get(API_OPEN_METEO_URL, params=parametros, timeout=10)
+        resposta.raise_for_status()
+        dados_json = resposta.json()
+
+        hourly = dados_json.get("hourly", {})
+
+        # Extrai os horários e formata para exibição (apenas hora)
+        horarios_raw = hourly.get("time", [])
+        horarios = [h.split("T")[1][:5] for h in horarios_raw]  # "2026-02-05T14:00" -> "14:00"
+
+        precipitacoes = hourly.get("precipitation", [])
+        probabilidades = hourly.get("precipitation_probability", [])
+
+        return {
+            "horarios": horarios,
+            "precipitacao": precipitacoes,
+            "probabilidade": probabilidades
+        }
+
+    except Exception as erro:
+        print(f"[ERRO API] Falha ao buscar previsão horária: {erro}")
+        return {
+            "horarios": [],
+            "precipitacao": [],
+            "probabilidade": []
+        }
+
+
 def _buscar_clima_bairro(bairro):
     """
     Função auxiliar para buscar clima de um único bairro.
@@ -684,6 +735,36 @@ def main():
         # Barra de progresso visual dos votos
         progresso = min(bairro_atual["votos"] / LIMITE_VOTOS_ALAGAMENTO, 1.0)
         st.progress(progresso, text=f"Votos: {bairro_atual['votos']}/{LIMITE_VOTOS_ALAGAMENTO}")
+
+        st.markdown("---")
+
+        # =====================================================================
+        # GRÁFICO DE PREVISÃO HORÁRIA
+        # =====================================================================
+        st.subheader("📈 Previsão de Chuva (24h)")
+
+        # Busca dados de previsão horária para o bairro selecionado
+        previsao = buscar_previsao_horaria(bairro_atual["lat"], bairro_atual["lon"])
+
+        if previsao["horarios"]:
+            # Cria DataFrame para o gráfico
+            df_previsao = pd.DataFrame({
+                "Horário": previsao["horarios"],
+                "Precipitação (mm)": previsao["precipitacao"],
+                "Probabilidade (%)": previsao["probabilidade"]
+            })
+
+            # Gráfico de barras para precipitação
+            st.bar_chart(
+                df_previsao.set_index("Horário")["Precipitação (mm)"],
+                color="#1E90FF"
+            )
+
+            # Exibe tabela com detalhes em um expander
+            with st.expander("📊 Ver dados detalhados"):
+                st.dataframe(df_previsao, use_container_width=True, hide_index=True)
+        else:
+            st.warning("Não foi possível carregar a previsão horária.")
 
         # Coordenadas do bairro (informativo)
         with st.expander("📍 Coordenadas do Bairro"):
