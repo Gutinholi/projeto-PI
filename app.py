@@ -74,6 +74,11 @@ import os
 # reduzindo drasticamente o tempo de atualização dos dados meteorológicos.
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+# Supabase: Cliente Python para o Supabase (PostgreSQL na nuvem).
+# Utilizado para persistência de dados sincronizada entre usuários.
+# Documentação: https://supabase.com/docs/reference/python/introduction
+from supabase import create_client, Client
+
 # =============================================================================
 # CONFIGURAÇÃO INICIAL DA PÁGINA STREAMLIT
 # =============================================================================
@@ -106,84 +111,105 @@ CACHE_TTL_SEGUNDOS = 120      # Tempo de vida do cache em segundos (2 minutos)
 API_OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 
 # =============================================================================
-# CAMADA DE DADOS - FUNÇÕES DE PERSISTÊNCIA
+# CONEXÃO COM SUPABASE
 # =============================================================================
-# Esta seção contém funções responsáveis pela leitura e escrita do arquivo JSON.
-# Seguimos o princípio de responsabilidade única (SOLID): cada função faz uma coisa.
+# Inicializa a conexão com o banco de dados Supabase usando as credenciais
+# armazenadas nos secrets do Streamlit (não ficam no código).
+
+@st.cache_resource
+def get_supabase_client() -> Client:
+    """
+    Cria e retorna uma conexão com o Supabase.
+
+    Utiliza @st.cache_resource para manter uma única conexão
+    durante toda a sessão, evitando reconexões desnecessárias.
+    """
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
+    return create_client(url, key)
+
+# =============================================================================
+# CAMADA DE DADOS - FUNÇÕES DE PERSISTÊNCIA (SUPABASE)
+# =============================================================================
+# Esta seção contém funções responsáveis pela leitura e escrita no Supabase.
+# Os dados são sincronizados em tempo real entre todos os usuários.
 
 def carregar_dados():
     """
-    Carrega os dados dos bairros a partir do arquivo JSON.
+    Carrega os dados dos bairros a partir do Supabase.
 
     Implementação:
-        Utiliza o gerenciador de contexto 'with' para garantir que o arquivo
-        será fechado corretamente após a leitura, mesmo em caso de erro.
+        Consulta a tabela 'bairros' no Supabase e retorna todos os registros
+        ordenados por ID.
 
     Retorno:
         list: Lista de dicionários contendo os dados de cada bairro.
-
-    Tratamento de Erros:
-        - FileNotFoundError: Arquivo não existe (precisa rodar resetar_bairros.py)
-        - json.JSONDecodeError: Arquivo corrompido ou mal formatado
     """
     try:
-        with open(ARQUIVO_DADOS, "r", encoding="utf-8") as arquivo:
-            dados = json.load(arquivo)
-            return dados
-    except FileNotFoundError:
-        # Exibe erro amigável na interface se o arquivo não existir
-        st.error("❌ Arquivo dados.json não encontrado! Execute primeiro: python resetar_bairros.py")
+        supabase = get_supabase_client()
+        response = supabase.table("bairros").select("*").order("id").execute()
+        return response.data
+    except Exception as erro:
+        st.error(f"❌ Erro ao conectar com o banco de dados: {erro}")
         return []
-    except json.JSONDecodeError:
-        st.error("❌ Erro ao ler dados.json. Arquivo pode estar corrompido.")
-        return []
+
+
+def salvar_bairro(bairro):
+    """
+    Atualiza os dados de um bairro específico no Supabase.
+
+    Parâmetros:
+        bairro (dict): Dicionário com dados atualizados do bairro.
+    """
+    try:
+        supabase = get_supabase_client()
+        supabase.table("bairros").update({
+            "status": bairro.get("status", "Normal"),
+            "risco": bairro.get("risco", "Baixo"),
+            "votos": bairro.get("votos", 0),
+            "chuva_real": bairro.get("chuva_real", 0),
+            "temperatura": bairro.get("temperatura", 0),
+            "probabilidade_chuva": bairro.get("probabilidade_chuva", 0),
+            "precipitacao_proxima_hora": bairro.get("precipitacao_proxima_hora", 0),
+            "updated_at": datetime.now().isoformat()
+        }).eq("id", bairro["id"]).execute()
+    except Exception as erro:
+        st.error(f"❌ Erro ao salvar dados: {erro}")
 
 
 def salvar_dados(dados):
     """
-    Persiste os dados dos bairros no arquivo JSON e atualiza o session_state.
+    Atualiza todos os bairros no Supabase.
 
     Parâmetros:
         dados (list): Lista de dicionários com dados atualizados dos bairros.
-
-    Detalhes Técnicos:
-        - indent=4: Formatação com 4 espaços para legibilidade
-        - ensure_ascii=False: Preserva caracteres acentuados do português
-        - encoding="utf-8": Padrão universal para caracteres especiais
     """
-    with open(ARQUIVO_DADOS, "w", encoding="utf-8") as arquivo:
-        json.dump(dados, arquivo, indent=4, ensure_ascii=False)
+    for bairro in dados:
+        salvar_bairro(bairro)
 
-    # OTIMIZAÇÃO: Atualiza o cache em memória após salvar
+    # Atualiza o cache em memória
     st.session_state.dados_bairros = dados
 
 
 def obter_dados_otimizado():
     """
-    Obtém dados dos bairros de forma otimizada usando session_state.
+    Obtém dados dos bairros do Supabase.
 
-    OTIMIZAÇÃO: Evita leituras repetidas do arquivo JSON mantendo
-    os dados em memória no session_state do Streamlit.
+    Sempre busca dados frescos do banco para garantir sincronização
+    entre todos os usuários.
 
     Retorno:
         list: Lista de dicionários com dados dos bairros.
-
-    Lógica:
-        1. Se dados já estão no session_state, retorna direto (rápido)
-        2. Se não, carrega do arquivo e armazena no session_state
     """
-    if "dados_bairros" not in st.session_state or st.session_state.dados_bairros is None:
-        st.session_state.dados_bairros = carregar_dados()
-
-    return st.session_state.dados_bairros
+    # Sempre carrega do Supabase para ter dados sincronizados
+    dados = carregar_dados()
+    st.session_state.dados_bairros = dados
+    return dados
 
 
 def forcar_recarregamento_dados():
     """
-    Força o recarregamento dos dados do arquivo JSON.
-
-    Útil quando sabemos que o arquivo foi modificado externamente
-    ou quando queremos garantir dados frescos.
+    Força o recarregamento dos dados do Supabase.
     """
     st.session_state.dados_bairros = carregar_dados()
     return st.session_state.dados_bairros
@@ -519,39 +545,41 @@ def obter_cor_rgb_status(status):
 
 def registrar_evento_historico(bairro, tipo_evento, detalhes=""):
     """
-    Registra um evento no histórico do bairro.
+    Registra um evento no histórico do bairro no Supabase.
 
     Parâmetros:
         bairro (dict): Dicionário do bairro a ser atualizado
         tipo_evento (str): Tipo do evento (ex: "ALAGAMENTO_CONFIRMADO", "NORMALIZADO")
         detalhes (str): Informações adicionais sobre o evento
-
-    Estrutura do evento:
-        {
-            "data": "2026-02-05",
-            "hora": "14:30:45",
-            "tipo": "ALAGAMENTO_CONFIRMADO",
-            "detalhes": "Confirmado por 5 votos da comunidade"
-        }
     """
-    # Garante que o bairro tenha o campo historico
-    if "historico" not in bairro:
-        bairro["historico"] = []
+    try:
+        supabase = get_supabase_client()
+        supabase.table("historico").insert({
+            "bairro_id": bairro["id"],
+            "bairro_nome": bairro["nome"],
+            "data": datetime.now().strftime("%Y-%m-%d"),
+            "hora": datetime.now().strftime("%H:%M:%S"),
+            "tipo": tipo_evento,
+            "detalhes": detalhes
+        }).execute()
+    except Exception as erro:
+        print(f"[ERRO] Falha ao registrar histórico: {erro}")
 
-    # Cria o registro do evento
-    evento = {
-        "data": datetime.now().strftime("%Y-%m-%d"),
-        "hora": datetime.now().strftime("%H:%M:%S"),
-        "tipo": tipo_evento,
-        "detalhes": detalhes
-    }
 
-    # Adiciona ao início da lista (eventos mais recentes primeiro)
-    bairro["historico"].insert(0, evento)
+def carregar_historico():
+    """
+    Carrega o histórico de eventos do Supabase.
 
-    # Limita o histórico aos últimos 50 eventos por bairro
-    if len(bairro["historico"]) > 50:
-        bairro["historico"] = bairro["historico"][:50]
+    Retorno:
+        list: Lista de eventos ordenados por data/hora (mais recentes primeiro).
+    """
+    try:
+        supabase = get_supabase_client()
+        response = supabase.table("historico").select("*").order("created_at", desc=True).limit(100).execute()
+        return response.data
+    except Exception as erro:
+        st.error(f"❌ Erro ao carregar histórico: {erro}")
+        return []
 
 
 # =============================================================================
@@ -1076,22 +1104,21 @@ def main():
         st.markdown("### 📜 Histórico de Alagamentos")
         st.caption("Registro de todos os alagamentos confirmados pela comunidade")
 
-        # Coleta todos os eventos de todos os bairros
+        # Carrega histórico do Supabase
+        historico_eventos = carregar_historico()
+
+        # Formata os eventos para exibição
         todos_eventos = []
-        for bairro in dados:
-            historico = bairro.get("historico", [])
-            for evento in historico:
-                todos_eventos.append({
-                    "bairro": bairro["nome"],
-                    "data": evento.get("data", ""),
-                    "hora": evento.get("hora", ""),
-                    "tipo": evento.get("tipo", ""),
-                    "detalhes": evento.get("detalhes", "")
-                })
+        for evento in historico_eventos:
+            todos_eventos.append({
+                "bairro": evento.get("bairro_nome", ""),
+                "data": evento.get("data", ""),
+                "hora": evento.get("hora", ""),
+                "tipo": evento.get("tipo", ""),
+                "detalhes": evento.get("detalhes", "")
+            })
 
         if todos_eventos:
-            # Ordena por data e hora (mais recentes primeiro)
-            todos_eventos.sort(key=lambda x: (x["data"], x["hora"]), reverse=True)
 
             # Estatísticas rápidas
             total_alagamentos = sum(1 for e in todos_eventos if e["tipo"] == "ALAGAMENTO_CONFIRMADO")
