@@ -50,6 +50,11 @@ import json
 # Documentação: https://pandas.pydata.org/
 import pandas as pd
 
+# Pydeck: Biblioteca para visualização de mapas interativos com WebGL.
+# Permite criar mapas com marcadores coloridos por status.
+# Documentação: https://pydeck.gl/
+import pydeck as pdk
+
 # Datetime: Módulo nativo para manipulação de datas e horários.
 # Utilizado para registrar timestamps das atualizações.
 # timedelta: Utilizado para definir intervalos de tempo na atualização automática.
@@ -487,6 +492,26 @@ def obter_emoji_status(status):
     return mapeamento_emojis.get(status, "❓")
 
 
+def obter_cor_rgb_status(status):
+    """
+    Retorna a cor RGB correspondente ao status para uso no mapa pydeck.
+
+    Parâmetros:
+        status (str): Status atual do bairro.
+
+    Retorno:
+        list: Lista com valores [R, G, B, A] (0-255)
+    """
+    mapeamento_cores_rgb = {
+        "Normal": [40, 167, 69, 200],           # Verde
+        "Atenção": [255, 193, 7, 200],          # Amarelo
+        "Risco Meteorológico": [253, 126, 20, 200],  # Laranja
+        "ALAGADO CONFIRMADO": [220, 53, 69, 200],    # Vermelho
+        "Crítico": [220, 53, 69, 200]           # Vermelho
+    }
+    return mapeamento_cores_rgb.get(status, [128, 128, 128, 200])
+
+
 # =============================================================================
 # FUNÇÃO PRINCIPAL - RENDERIZAÇÃO DA APLICAÇÃO
 # =============================================================================
@@ -768,20 +793,73 @@ def main():
         else:
             st.warning("Não foi possível carregar a previsão horária.")
 
-    # ----- ABA 2: MAPA -----
+    # ----- ABA 2: MAPA COM CORES POR STATUS -----
     with tab_mapa:
+        # Prepara dados com cores baseadas no status
         dados_mapa = []
         for bairro in dados:
-            tamanho = 100 + (bairro["votos"] * 80)
+            cor = obter_cor_rgb_status(bairro["status"])
+            raio = 300 + (bairro["votos"] * 100)  # Raio base + votos
             dados_mapa.append({
                 "lat": bairro["lat"],
                 "lon": bairro["lon"],
-                "size": tamanho
+                "nome": bairro["nome"],
+                "status": bairro["status"],
+                "cor": cor,
+                "raio": raio
             })
 
         df_mapa = pd.DataFrame(dados_mapa)
-        st.map(df_mapa, size="size", zoom=11)
-        st.caption("📌 Círculos maiores = Mais reportes")
+
+        # Camada de círculos coloridos
+        layer = pdk.Layer(
+            "ScatterplotLayer",
+            data=df_mapa,
+            get_position=["lon", "lat"],
+            get_color="cor",
+            get_radius="raio",
+            pickable=True,
+            opacity=0.8,
+            stroked=True,
+            line_width_min_pixels=2,
+        )
+
+        # Configuração da visualização do mapa
+        view_state = pdk.ViewState(
+            latitude=-23.97,
+            longitude=-46.26,
+            zoom=11,
+            pitch=0,
+        )
+
+        # Renderiza o mapa
+        st.pydeck_chart(pdk.Deck(
+            layers=[layer],
+            initial_view_state=view_state,
+            tooltip={"text": "{nome}\n{status}"}
+        ))
+
+        # Legenda de cores
+        st.markdown("""
+            <div style="display: flex; justify-content: center; gap: 15px; margin-top: 10px; flex-wrap: wrap;">
+                <span style="display: flex; align-items: center; gap: 5px;">
+                    <div style="width: 15px; height: 15px; background: #28a745; border-radius: 50%;"></div>
+                    <small>Normal</small>
+                </span>
+                <span style="display: flex; align-items: center; gap: 5px;">
+                    <div style="width: 15px; height: 15px; background: #ffc107; border-radius: 50%;"></div>
+                    <small>Atenção</small>
+                </span>
+                <span style="display: flex; align-items: center; gap: 5px;">
+                    <div style="width: 15px; height: 15px; background: #fd7e14; border-radius: 50%;"></div>
+                    <small>Risco</small>
+                </span>
+                <span style="display: flex; align-items: center; gap: 5px;">
+                    <div style="width: 15px; height: 15px; background: #dc3545; border-radius: 50%;"></div>
+                    <small>Alagado</small>
+                </span>
+            </div>
+        """, unsafe_allow_html=True)
 
     # ----- ABA 3: TODOS OS BAIRROS -----
     with tab_todos:

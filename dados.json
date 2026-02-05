@@ -7,7 +7,7 @@
         "status": "Atenção",
         "risco": "Médio",
         "votos": 2,
-        "chuva_real": 0.0,
+        "chuva_real": 0.3,
         "temperatura": 26.2,
         "probabilidade_chuva": 95,
         "precipitacao_proxima_hora": 1.0
@@ -20,7 +20,7 @@
         "status": "Atenção",
         "risco": "Médio",
         "votos": 0,
-        "chuva_real": 0.0,
+        "chuva_real": 0.3,
         "temperatura": 26.2,
         "probabilidade_chuva": 95,
         "precipitacao_proxima_hora": 1.0
@@ -33,7 +33,7 @@
         "status": "Atenção",
         "risco": "Médio",
         "votos": 0,
-        "chuva_real": 0.0,
+        "chuva_real": 0.5,
         "temperatura": 24.5,
         "probabilidade_chuva": 95,
         "precipitacao_proxima_hora": 2.0
@@ -46,7 +46,7 @@
         "status": "Atenção",
         "risco": "Médio",
         "votos": 0,
-        "chuva_real": 0.0,
+        "chuva_real": 0.3,
         "temperatura": 26.2,
         "probabilidade_chuva": 95,
         "precipitacao_proxima_hora": 1.0
@@ -59,7 +59,7 @@
         "status": "Atenção",
         "risco": "Médio",
         "votos": 0,
-        "chuva_real": 0.0,
+        "chuva_real": 0.3,
         "temperatura": 26.3,
         "probabilidade_chuva": 95,
         "precipitacao_proxima_hora": 1.0
@@ -72,7 +72,7 @@
         "status": "Atenção",
         "risco": "Médio",
         "votos": 0,
-        "chuva_real": 0.0,
+        "chuva_real": 0.3,
         "temperatura": 26.3,
         "probabilidade_chuva": 95,
         "precipitacao_proxima_hora": 1.0
@@ -85,7 +85,7 @@
         "status": "Atenção",
         "risco": "Médio",
         "votos": 0,
-        "chuva_real": 0.0,
+        "chuva_real": 0.3,
         "temperatura": 26.2,
         "probabilidade_chuva": 95,
         "precipitacao_proxima_hora": 1.0
@@ -98,7 +98,7 @@
         "status": "Atenção",
         "risco": "Médio",
         "votos": 0,
-        "chuva_real": 0.0,
+        "chuva_real": 0.3,
         "temperatura": 26.2,
         "probabilidade_chuva": 95,
         "precipitacao_proxima_hora": 1.0
@@ -111,7 +111,7 @@
         "status": "Atenção",
         "risco": "Médio",
         "votos": 0,
-        "chuva_real": 0.0,
+        "chuva_real": 0.3,
         "temperatura": 25.7,
         "probabilidade_chuva": 95,
         "precipitacao_proxima_hora": 1.0
@@ -124,7 +124,7 @@
         "status": "Atenção",
         "risco": "Médio",
         "votos": 0,
-        "chuva_real": 0.0,
+        "chuva_real": 0.3,
         "temperatura": 26.2,
         "probabilidade_chuva": 95,
         "precipitacao_proxima_hora": 1.0
@@ -137,7 +137,7 @@
         "status": "Atenção",
         "risco": "Médio",
         "votos": 0,
-        "chuva_real": 0.0,
+        "chuva_real": 0.4,
         "temperatura": 25.9,
         "probabilidade_chuva": 95,
         "precipitacao_proxima_hora": 1.5
@@ -150,7 +150,7 @@
         "status": "Atenção",
         "risco": "Médio",
         "votos": 0,
-        "chuva_real": 0.0,
+        "chuva_real": 0.4,
         "temperatura": 25.9,
         "probabilidade_chuva": 95,
         "precipitacao_proxima_hora": 1.5
@@ -163,7 +163,7 @@
         "status": "Atenção",
         "risco": "Médio",
         "votos": 0,
-        "chuva_real": 0.0,
+        "chuva_real": 0.3,
         "temperatura": 25.8,
         "probabilidade_chuva": 95,
         "precipitacao_proxima_hora": 1.0
@@ -176,7 +176,7 @@
         "status": "Atenção",
         "risco": "Médio",
         "votos": 0,
-        "chuva_real": 0.0,
+        "chuva_real": 0.3,
         "temperatura": 26.2,
         "probabilidade_chuva": 95,
         "precipitacao_proxima_hora": 1.0
@@ -190,8 +190,8 @@
         "risco": "Médio",
         "votos": 0,
         "chuva_real": 0.0,
-        "temperatura": 26.2,
-        "probabilidade_chuva": 95,
-        "precipitacao_proxima_hora": 1.0
+        "temperatura": 0.0,
+        "probabilidade_chuva": 0,
+        "precipitacao_proxima_hora": 0.0
     }
 ]
