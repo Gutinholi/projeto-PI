@@ -102,7 +102,7 @@ DIRETORIO_BASE = os.path.dirname(os.path.abspath(__file__))
 ARQUIVO_DADOS = os.path.join(DIRETORIO_BASE, "dados.json")  # Caminho absoluto do arquivo
 LIMITE_VOTOS_ALAGAMENTO = 5   # Mínimo de votos para confirmar alagamento
 LIMITE_CHUVA_RISCO = 10.0     # Precipitação (mm) que dispara alerta automático
-INTERVALO_ATUALIZACAO = 10    # Intervalo em minutos para atualização automática do clima (aumentado para performance)
+INTERVALO_ATUALIZACAO = 1     # Intervalo em minutos para atualização automática do clima
 MAX_WORKERS_API = 5           # Número máximo de requisições paralelas à API
 CACHE_TTL_SEGUNDOS = 120      # Tempo de vida do cache em segundos (2 minutos)
 
@@ -133,14 +133,19 @@ def get_supabase_client() -> Client:
 # =============================================================================
 # Esta seção contém funções responsáveis pela leitura e escrita no Supabase.
 # Os dados são sincronizados em tempo real entre todos os usuários.
+# OTIMIZAÇÃO: Cache de 30 segundos para evitar consultas excessivas.
 
+# TTL do cache de dados (em segundos) - curto para sincronização rápida
+CACHE_DADOS_TTL = 15
+
+@st.cache_data(ttl=CACHE_DADOS_TTL, show_spinner=False)
 def carregar_dados():
     """
     Carrega os dados dos bairros a partir do Supabase.
 
-    Implementação:
-        Consulta a tabela 'bairros' no Supabase e retorna todos os registros
-        ordenados por ID.
+    OTIMIZAÇÃO: Utiliza cache de 30 segundos para evitar consultas
+    repetidas ao banco de dados. O cache é invalidado automaticamente
+    após o TTL ou manualmente quando há uma atualização.
 
     Retorno:
         list: Lista de dicionários contendo os dados de cada bairro.
@@ -152,6 +157,14 @@ def carregar_dados():
     except Exception as erro:
         st.error(f"❌ Erro ao conectar com o banco de dados: {erro}")
         return []
+
+
+def invalidar_cache_dados():
+    """
+    Invalida o cache de dados para forçar uma nova consulta ao Supabase.
+    Chamado após atualizações (votos, clima, etc).
+    """
+    carregar_dados.clear()
 
 
 def salvar_bairro(bairro):
@@ -187,24 +200,21 @@ def salvar_dados(dados):
     for bairro in dados:
         salvar_bairro(bairro)
 
-    # Atualiza o cache em memória
-    st.session_state.dados_bairros = dados
+    # Invalida o cache para buscar dados frescos na próxima leitura
+    invalidar_cache_dados()
 
 
 def obter_dados_otimizado():
     """
-    Obtém dados dos bairros do Supabase.
+    Obtém dados dos bairros do Supabase com cache inteligente.
 
-    Sempre busca dados frescos do banco para garantir sincronização
-    entre todos os usuários.
+    OTIMIZAÇÃO: Usa cache de 30 segundos para performance.
+    Os dados são atualizados automaticamente após o TTL.
 
     Retorno:
         list: Lista de dicionários com dados dos bairros.
     """
-    # Sempre carrega do Supabase para ter dados sincronizados
-    dados = carregar_dados()
-    st.session_state.dados_bairros = dados
-    return dados
+    return carregar_dados()
 
 
 def forcar_recarregamento_dados():
