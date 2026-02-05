@@ -55,6 +55,11 @@ import pandas as pd
 # Documentação: https://pydeck.gl/
 import pydeck as pdk
 
+# Plotly: Biblioteca para criação de gráficos interativos.
+# Usamos para o gráfico de previsão horária com área e linhas.
+# Documentação: https://plotly.com/python/
+import plotly.graph_objects as go
+
 # Datetime: Módulo nativo para manipulação de datas e horários.
 # Utilizado para registrar timestamps das atualizações.
 # timedelta: Utilizado para definir intervalos de tempo na atualização automática.
@@ -783,10 +788,138 @@ def main():
                 "Probabilidade (%)": previsao["probabilidade"]
             })
 
-            st.bar_chart(
-                df_previsao.set_index("Horário")["Precipitação (mm)"],
-                color="#1E90FF"
+            # Hora atual para destacar no gráfico
+            hora_atual = datetime.now().hour
+            hora_atual_str = f"{hora_atual:02d}:00"
+
+            # Cria o gráfico interativo com Plotly
+            fig = go.Figure()
+
+            # Área preenchida para precipitação (eixo Y principal)
+            fig.add_trace(go.Scatter(
+                x=df_previsao["Horário"],
+                y=df_previsao["Precipitação (mm)"],
+                mode='lines',
+                fill='tozeroy',
+                name='Precipitação',
+                line=dict(color='#1E90FF', width=2),
+                fillcolor='rgba(30, 144, 255, 0.3)',
+                hovertemplate='<b>%{x}</b><br>Precipitação: %{y:.1f} mm<extra></extra>'
+            ))
+
+            # Linha para probabilidade de chuva (eixo Y secundário)
+            fig.add_trace(go.Scatter(
+                x=df_previsao["Horário"],
+                y=df_previsao["Probabilidade (%)"],
+                mode='lines+markers',
+                name='Probabilidade',
+                line=dict(color='#FF6B35', width=2, dash='dot'),
+                marker=dict(size=6),
+                yaxis='y2',
+                hovertemplate='<b>%{x}</b><br>Probabilidade: %{y}%<extra></extra>'
+            ))
+
+            # Linha vertical indicando a hora atual
+            fig.add_vline(
+                x=hora_atual_str,
+                line_width=2,
+                line_dash="dash",
+                line_color="#00FF00",
+                annotation_text="Agora",
+                annotation_position="top",
+                annotation_font_color="#00FF00"
             )
+
+            # Faixa de risco (precipitação acima de 10mm)
+            fig.add_hrect(
+                y0=LIMITE_CHUVA_RISCO,
+                y1=max(df_previsao["Precipitação (mm)"].max() + 5, LIMITE_CHUVA_RISCO + 5),
+                fillcolor="rgba(220, 53, 69, 0.15)",
+                line_width=0,
+                annotation_text="Zona de Risco",
+                annotation_position="top right",
+                annotation_font_color="#dc3545"
+            )
+
+            # Layout do gráfico
+            fig.update_layout(
+                title=dict(
+                    text=f"🌧️ Previsão de Chuva - {bairro_atual['nome']}",
+                    font=dict(size=18)
+                ),
+                xaxis=dict(
+                    title="Horário",
+                    tickangle=45,
+                    showgrid=True,
+                    gridcolor='rgba(128,128,128,0.2)'
+                ),
+                yaxis=dict(
+                    title="Precipitação (mm)",
+                    titlefont=dict(color='#1E90FF'),
+                    tickfont=dict(color='#1E90FF'),
+                    showgrid=True,
+                    gridcolor='rgba(128,128,128,0.2)',
+                    rangemode='tozero'
+                ),
+                yaxis2=dict(
+                    title="Probabilidade (%)",
+                    titlefont=dict(color='#FF6B35'),
+                    tickfont=dict(color='#FF6B35'),
+                    overlaying='y',
+                    side='right',
+                    range=[0, 100],
+                    showgrid=False
+                ),
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="center",
+                    x=0.5
+                ),
+                hovermode='x unified',
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                height=400,
+                margin=dict(l=50, r=50, t=80, b=60)
+            )
+
+            # Renderiza o gráfico no Streamlit
+            st.plotly_chart(fig, use_container_width=True)
+
+            # Resumo rápido da previsão
+            max_precip = df_previsao["Precipitação (mm)"].max()
+            max_prob = df_previsao["Probabilidade (%)"].max()
+            hora_max_precip = df_previsao.loc[df_previsao["Precipitação (mm)"].idxmax(), "Horário"]
+
+            col_info1, col_info2, col_info3 = st.columns(3)
+            with col_info1:
+                cor_max = "#dc3545" if max_precip >= LIMITE_CHUVA_RISCO else "#28a745"
+                st.markdown(f"""
+                    <div style="text-align: center; padding: 10px; background: rgba(0,0,0,0.1); border-radius: 8px;">
+                        <p style="margin: 0; color: gray; font-size: 12px;">Pico de Chuva</p>
+                        <h3 style="margin: 5px 0; color: {cor_max};">{max_precip:.1f} mm</h3>
+                        <small>às {hora_max_precip}</small>
+                    </div>
+                """, unsafe_allow_html=True)
+            with col_info2:
+                cor_prob = "#dc3545" if max_prob >= 80 else ("#ffc107" if max_prob >= 50 else "#28a745")
+                st.markdown(f"""
+                    <div style="text-align: center; padding: 10px; background: rgba(0,0,0,0.1); border-radius: 8px;">
+                        <p style="margin: 0; color: gray; font-size: 12px;">Máx. Probabilidade</p>
+                        <h3 style="margin: 5px 0; color: {cor_prob};">{max_prob}%</h3>
+                        <small>de chance</small>
+                    </div>
+                """, unsafe_allow_html=True)
+            with col_info3:
+                total_precip = df_previsao["Precipitação (mm)"].sum()
+                st.markdown(f"""
+                    <div style="text-align: center; padding: 10px; background: rgba(0,0,0,0.1); border-radius: 8px;">
+                        <p style="margin: 0; color: gray; font-size: 12px;">Total Acumulado</p>
+                        <h3 style="margin: 5px 0; color: #1E90FF;">{total_precip:.1f} mm</h3>
+                        <small>nas próximas 24h</small>
+                    </div>
+                """, unsafe_allow_html=True)
 
             with st.expander("📊 Ver dados detalhados"):
                 st.dataframe(df_previsao, hide_index=True)
