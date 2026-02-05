@@ -6,11 +6,11 @@
         "lon": -46.2564,
         "status": "Atenção",
         "risco": "Médio",
-        "votos": 0,
+        "votos": 2,
         "chuva_real": 0.0,
-        "temperatura": 26.4,
-        "probabilidade_chuva": 90,
-        "precipitacao_proxima_hora": 0.9
+        "temperatura": 26.2,
+        "probabilidade_chuva": 95,
+        "precipitacao_proxima_hora": 1.0
     },
     {
         "id": 2,
@@ -21,9 +21,9 @@
         "risco": "Médio",
         "votos": 0,
         "chuva_real": 0.0,
-        "temperatura": 26.4,
-        "probabilidade_chuva": 90,
-        "precipitacao_proxima_hora": 0.9
+        "temperatura": 26.2,
+        "probabilidade_chuva": 95,
+        "precipitacao_proxima_hora": 1.0
     },
     {
         "id": 3,
@@ -34,9 +34,9 @@
         "risco": "Médio",
         "votos": 0,
         "chuva_real": 0.0,
-        "temperatura": 25.2,
-        "probabilidade_chuva": 90,
-        "precipitacao_proxima_hora": 0.3
+        "temperatura": 24.5,
+        "probabilidade_chuva": 95,
+        "precipitacao_proxima_hora": 2.0
     },
     {
         "id": 4,
@@ -47,9 +47,9 @@
         "risco": "Médio",
         "votos": 0,
         "chuva_real": 0.0,
-        "temperatura": 26.4,
-        "probabilidade_chuva": 90,
-        "precipitacao_proxima_hora": 0.9
+        "temperatura": 26.2,
+        "probabilidade_chuva": 95,
+        "precipitacao_proxima_hora": 1.0
     },
     {
         "id": 5,
@@ -60,9 +60,9 @@
         "risco": "Médio",
         "votos": 0,
         "chuva_real": 0.0,
-        "temperatura": 26.4,
-        "probabilidade_chuva": 90,
-        "precipitacao_proxima_hora": 0.9
+        "temperatura": 26.3,
+        "probabilidade_chuva": 95,
+        "precipitacao_proxima_hora": 1.0
     },
     {
         "id": 6,
@@ -73,9 +73,9 @@
         "risco": "Médio",
         "votos": 0,
         "chuva_real": 0.0,
-        "temperatura": 26.4,
-        "probabilidade_chuva": 90,
-        "precipitacao_proxima_hora": 0.9
+        "temperatura": 26.3,
+        "probabilidade_chuva": 95,
+        "precipitacao_proxima_hora": 1.0
     },
     {
         "id": 7,
@@ -86,9 +86,9 @@
         "risco": "Médio",
         "votos": 0,
         "chuva_real": 0.0,
-        "temperatura": 26.4,
-        "probabilidade_chuva": 90,
-        "precipitacao_proxima_hora": 0.9
+        "temperatura": 26.2,
+        "probabilidade_chuva": 95,
+        "precipitacao_proxima_hora": 1.0
     },
     {
         "id": 8,
@@ -99,9 +99,9 @@
         "risco": "Médio",
         "votos": 0,
         "chuva_real": 0.0,
-        "temperatura": 26.4,
-        "probabilidade_chuva": 90,
-        "precipitacao_proxima_hora": 0.9
+        "temperatura": 26.2,
+        "probabilidade_chuva": 95,
+        "precipitacao_proxima_hora": 1.0
     },
     {
         "id": 9,
@@ -112,9 +112,9 @@
         "risco": "Médio",
         "votos": 0,
         "chuva_real": 0.0,
-        "temperatura": 25.8,
-        "probabilidade_chuva": 90,
-        "precipitacao_proxima_hora": 0.9
+        "temperatura": 25.7,
+        "probabilidade_chuva": 95,
+        "precipitacao_proxima_hora": 1.0
     },
     {
         "id": 10,
@@ -125,9 +125,9 @@
         "risco": "Médio",
         "votos": 0,
         "chuva_real": 0.0,
-        "temperatura": 26.4,
-        "probabilidade_chuva": 90,
-        "precipitacao_proxima_hora": 0.9
+        "temperatura": 26.2,
+        "probabilidade_chuva": 95,
+        "precipitacao_proxima_hora": 1.0
     },
     {
         "id": 11,
@@ -138,9 +138,9 @@
         "risco": "Médio",
         "votos": 0,
         "chuva_real": 0.0,
-        "temperatura": 26.6,
-        "probabilidade_chuva": 90,
-        "precipitacao_proxima_hora": 0.9
+        "temperatura": 25.9,
+        "probabilidade_chuva": 95,
+        "precipitacao_proxima_hora": 1.5
     },
     {
         "id": 12,
@@ -151,9 +151,9 @@
         "risco": "Médio",
         "votos": 0,
         "chuva_real": 0.0,
-        "temperatura": 26.5,
-        "probabilidade_chuva": 90,
-        "precipitacao_proxima_hora": 0.9
+        "temperatura": 25.9,
+        "probabilidade_chuva": 95,
+        "precipitacao_proxima_hora": 1.5
     },
     {
         "id": 13,
@@ -164,9 +164,9 @@
         "risco": "Médio",
         "votos": 0,
         "chuva_real": 0.0,
-        "temperatura": 26.0,
-        "probabilidade_chuva": 90,
-        "precipitacao_proxima_hora": 0.9
+        "temperatura": 25.8,
+        "probabilidade_chuva": 95,
+        "precipitacao_proxima_hora": 1.0
     },
     {
         "id": 14,
@@ -177,9 +177,9 @@
         "risco": "Médio",
         "votos": 0,
         "chuva_real": 0.0,
-        "temperatura": 26.3,
-        "probabilidade_chuva": 90,
-        "precipitacao_proxima_hora": 0.9
+        "temperatura": 26.2,
+        "probabilidade_chuva": 95,
+        "precipitacao_proxima_hora": 1.0
     },
     {
         "id": 15,
@@ -190,8 +190,8 @@
         "risco": "Médio",
         "votos": 0,
         "chuva_real": 0.0,
-        "temperatura": 26.3,
-        "probabilidade_chuva": 90,
-        "precipitacao_proxima_hora": 0.9
+        "temperatura": 26.2,
+        "probabilidade_chuva": 95,
+        "precipitacao_proxima_hora": 1.0
     }
 ]

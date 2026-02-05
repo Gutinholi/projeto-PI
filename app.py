@@ -495,108 +495,130 @@ def main():
     """
     Função principal que orquestra toda a renderização da aplicação Streamlit.
 
-    Estrutura da Interface:
-        1. Cabeçalho com título e descrição
-        2. Sidebar com seleção de bairro e controles administrativos
-        3. Área principal dividida em duas colunas:
-           - Coluna 1: Painel detalhado do bairro selecionado
-           - Coluna 2: Mapa geral da cidade com todos os bairros
+    Estrutura da Interface (REDESIGN v2.0):
+        1. Cabeçalho compacto
+        2. Resumo da cidade (cards de status)
+        3. Seletor de bairro na área principal
+        4. Painel do bairro com métricas e ações
+        5. Abas para Previsão/Mapa/Tabela
+        6. Sidebar apenas para admin (escondido)
     """
 
     # =========================================================================
     # ATUALIZAÇÃO AUTOMÁTICA DO CLIMA
     # =========================================================================
-    # Chama o fragmento que executa automaticamente a cada X minutos
     atualizar_clima_automatico()
 
     # =========================================================================
-    # CABEÇALHO DA APLICAÇÃO
+    # CABEÇALHO COMPACTO
     # =========================================================================
-    st.title("🌊 Monitor de Alagamentos - Guarujá/SP")
     st.markdown("""
-    **Sistema Colaborativo de Monitoramento** | Dados em tempo real + Reportes da Comunidade
-
-    ---
-    """)
+        <h1 style='text-align: center; margin-bottom: 0;'>🌊 Monitor de Alagamentos</h1>
+        <p style='text-align: center; color: gray; margin-top: 0;'>Guarujá/SP • Dados em tempo real</p>
+    """, unsafe_allow_html=True)
 
     # =========================================================================
     # CARREGAMENTO DOS DADOS (OTIMIZADO)
     # =========================================================================
-    # Usa session_state para evitar releituras desnecessárias do arquivo JSON
     dados = obter_dados_otimizado()
 
-    # Verifica se os dados foram carregados corretamente
     if not dados:
         st.warning("⚠️ Nenhum dado disponível. Execute o script de setup primeiro.")
         st.code("python resetar_bairros.py", language="bash")
-        st.stop()  # Interrompe a execução se não há dados
+        st.stop()
 
-    # Cria lista de nomes de bairros para o seletor
+    # =========================================================================
+    # RESUMO DA CIDADE - CARDS DE STATUS
+    # =========================================================================
+    # Conta bairros por status para visão geral
+    contagem_normal = sum(1 for b in dados if b["status"] == "Normal")
+    contagem_atencao = sum(1 for b in dados if b["status"] == "Atenção")
+    contagem_risco = sum(1 for b in dados if b["status"] == "Risco Meteorológico")
+    contagem_alagado = sum(1 for b in dados if b["status"] == "ALAGADO CONFIRMADO")
+
+    st.markdown("### 📊 Situação Atual da Cidade")
+
+    col_r1, col_r2, col_r3, col_r4 = st.columns(4)
+
+    with col_r1:
+        st.markdown(f"""
+            <div style="background: linear-gradient(135deg, #28a745, #20c997); padding: 15px; border-radius: 10px; text-align: center;">
+                <h2 style="color: white; margin: 0;">{contagem_normal}</h2>
+                <p style="color: white; margin: 0; font-size: 14px;">🟢 Normais</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+    with col_r2:
+        st.markdown(f"""
+            <div style="background: linear-gradient(135deg, #ffc107, #fd7e14); padding: 15px; border-radius: 10px; text-align: center;">
+                <h2 style="color: white; margin: 0;">{contagem_atencao}</h2>
+                <p style="color: white; margin: 0; font-size: 14px;">🟡 Atenção</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+    with col_r3:
+        st.markdown(f"""
+            <div style="background: linear-gradient(135deg, #fd7e14, #e65100); padding: 15px; border-radius: 10px; text-align: center;">
+                <h2 style="color: white; margin: 0;">{contagem_risco}</h2>
+                <p style="color: white; margin: 0; font-size: 14px;">🟠 Risco</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+    with col_r4:
+        st.markdown(f"""
+            <div style="background: linear-gradient(135deg, #dc3545, #c82333); padding: 15px; border-radius: 10px; text-align: center;">
+                <h2 style="color: white; margin: 0;">{contagem_alagado}</h2>
+                <p style="color: white; margin: 0; font-size: 14px;">🔴 Alagados</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # =========================================================================
+    # SELETOR DE BAIRRO - ÁREA PRINCIPAL
+    # =========================================================================
     nomes_bairros = [bairro["nome"] for bairro in dados]
 
+    st.markdown("### 📍 Selecione seu Bairro")
+    bairro_selecionado_nome = st.selectbox(
+        "Escolha o bairro para ver detalhes e reportar:",
+        options=nomes_bairros,
+        label_visibility="collapsed"
+    )
+
     # =========================================================================
-    # SIDEBAR - MENU LATERAL
+    # SIDEBAR - APENAS ADMIN (ESCONDIDO)
     # =========================================================================
-    # A sidebar é ideal para controles e filtros que não são o foco principal.
     with st.sidebar:
-        st.header("📍 Selecione seu Bairro")
+        st.markdown("### ⚙️ Painel Administrativo")
 
-        # Selectbox: Componente de seleção dropdown
-        # Permite ao usuário escolher em qual bairro ele está localizado
-        bairro_selecionado_nome = st.selectbox(
-            "Bairro:",
-            options=nomes_bairros,
-            help="Escolha o bairro para visualizar detalhes e reportar alagamentos"
-        )
+        with st.expander("🔧 Controles Admin", expanded=False):
+            # Botão para atualização manual dos dados meteorológicos
+            if st.button("🔄 Atualizar Clima (API)", use_container_width=True):
+                with st.spinner("Consultando API Open-Meteo..."):
+                    buscar_clima_api.clear()
+                    dados = atualizar_clima_todos_bairros(dados)
+                    salvar_dados(dados)
+                st.toast("✅ Dados meteorológicos atualizados!", icon="🌤️")
+                st.rerun()
 
-        st.markdown("---")
-
-        # =====================================================================
-        # PAINEL ADMINISTRATIVO
-        # =====================================================================
-        st.header("⚙️ Painel Admin")
-
-        # Botão para atualização manual dos dados meteorológicos
-        # Em produção, isso poderia ser automatizado com agendamento (cron)
-        if st.button("🔄 Atualizar Clima (API)", use_container_width=True):
-            # Exibe spinner durante a operação (feedback visual)
-            with st.spinner("Consultando API Open-Meteo..."):
-                # Limpa o cache da API para forçar requisições frescas
-                buscar_clima_api.clear()
-                dados = atualizar_clima_todos_bairros(dados)
+            # Botão para resetar todos os votos
+            if st.button("🗑️ Resetar Votos", use_container_width=True):
+                for bairro in dados:
+                    bairro["votos"] = 0
+                    bairro["status"] = "Normal"
+                    bairro["risco"] = "Baixo"
                 salvar_dados(dados)
+                st.toast("✅ Votos resetados!", icon="🔄")
+                st.rerun()
 
-            # Toast: Notificação temporária não-intrusiva
-            st.toast("✅ Dados meteorológicos atualizados!", icon="🌤️")
-            # Rerun força atualização da página com novos dados
-            st.rerun()
-
-        # Botão para resetar todos os votos (útil para testes/demonstrações)
-        if st.button("🗑️ Resetar Votos", use_container_width=True):
-            for bairro in dados:
-                bairro["votos"] = 0
-                bairro["status"] = "Normal"
-                bairro["risco"] = "Baixo"
-            salvar_dados(dados)
-            st.toast("✅ Votos resetados!", icon="🔄")
-            st.rerun()
-
+        # Informações do sistema na sidebar
         st.markdown("---")
-
-        # Informações do sistema
-        st.caption("ℹ️ **Sobre o Sistema**")
-
-        # Exibe informação sobre atualização automática
-        st.caption(f"🔄 **Atualização automática:** a cada {INTERVALO_ATUALIZACAO} min")
-
-        # Mostra última atualização automática se disponível
+        st.caption(f"🔄 Atualização: a cada {INTERVALO_ATUALIZACAO} min")
         if "ultima_atualizacao_auto" in st.session_state and st.session_state.ultima_atualizacao_auto:
             ultima = st.session_state.ultima_atualizacao_auto.strftime('%H:%M:%S')
-            st.caption(f"⏱️ Última atualização: {ultima}")
-        else:
-            st.caption(f"⏱️ Última atualização: {datetime.now().strftime('%H:%M:%S')}")
-
-        st.caption(f"📍 Total de bairros: {len(dados)}")
+            st.caption(f"⏱️ Última: {ultima}")
+        st.caption(f"📍 {len(dados)} bairros monitorados")
 
     # =========================================================================
     # LOCALIZA O BAIRRO SELECIONADO NOS DADOS
@@ -612,230 +634,171 @@ def main():
         st.stop()
 
     # =========================================================================
-    # ÁREA PRINCIPAL - LAYOUT EM DUAS COLUNAS
+    # PAINEL DO BAIRRO SELECIONADO
     # =========================================================================
-    # st.columns() cria um layout responsivo em colunas
-    # [1.2, 1] significa proporção 1.2:1 (primeira coluna levemente maior)
-    col_painel, col_mapa = st.columns([1.2, 1])
+    cor_status = obter_cor_status(bairro_atual["status"])
+    emoji_status = obter_emoji_status(bairro_atual["status"])
+
+    # Card de status principal - grande e destacado
+    st.markdown(
+        f"""
+        <div style="
+            background: linear-gradient(135deg, {cor_status}, {cor_status}dd);
+            padding: 25px;
+            border-radius: 15px;
+            text-align: center;
+            margin: 20px 0;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        ">
+            <h1 style="color: white; margin: 0; font-size: 2.5em;">
+                {emoji_status} {bairro_atual['status']}
+            </h1>
+            <p style="color: white; margin: 10px 0 0 0; font-size: 1.2em; opacity: 0.9;">
+                📍 {bairro_atual['nome']}
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
     # =========================================================================
-    # COLUNA 1: PAINEL DO BAIRRO SELECIONADO
+    # MÉTRICAS EM 3 COLUNAS (MOBILE-FRIENDLY)
     # =========================================================================
-    with col_painel:
-        st.subheader(f"📊 Painel: {bairro_atual['nome']}")
+    col_m1, col_m2, col_m3 = st.columns(3)
 
-        # Obtém cor e emoji baseados no status atual
-        cor_status = obter_cor_status(bairro_atual["status"])
-        emoji_status = obter_emoji_status(bairro_atual["status"])
+    with col_m1:
+        st.metric(
+            label="🌡️ Temperatura",
+            value=f"{bairro_atual.get('temperatura', 0):.1f} °C"
+        )
 
-        # Exibe status com formatação colorida usando HTML inline
-        # O parâmetro unsafe_allow_html=True permite renderizar HTML
+    with col_m2:
+        st.metric(
+            label="🌧️ Chuva Agora",
+            value=f"{bairro_atual.get('chuva_real', 0):.1f} mm"
+        )
+
+    with col_m3:
+        prob_chuva = bairro_atual.get('probabilidade_chuva', 0)
+        st.metric(
+            label="🎲 Chance de Chuva",
+            value=f"{prob_chuva}%"
+        )
+
+    # =========================================================================
+    # BOTÃO DE REPORTE - GRANDE E DESTACADO
+    # =========================================================================
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Mostra quantos votos faltam
+    votos_faltam = LIMITE_VOTOS_ALAGAMENTO - bairro_atual.get("votos", 0)
+    if votos_faltam > 0:
         st.markdown(
             f"""
             <div style="
-                background-color: {cor_status};
-                padding: 15px;
-                border-radius: 10px;
+                background: linear-gradient(135deg, #dc3545, #c82333);
+                padding: 20px;
+                border-radius: 15px;
                 text-align: center;
-                margin-bottom: 20px;
+                margin-bottom: 10px;
+                cursor: pointer;
             ">
-                <h2 style="color: white; margin: 0;">
-                    {emoji_status} {bairro_atual['status']}
-                </h2>
+                <h2 style="color: white; margin: 0;">🚨 REPORTAR ALAGAMENTO</h2>
+                <p style="color: white; margin: 5px 0 0 0; opacity: 0.9;">
+                    Clique abaixo se há alagamento neste bairro
+                </p>
             </div>
             """,
             unsafe_allow_html=True
         )
 
-        # Métricas em linha usando colunas internas
-        # st.metric() exibe valores com destaque visual
-        metrica_col1, metrica_col2, metrica_col3, metrica_col4, metrica_col5 = st.columns(5)
+    # Botão funcional
+    if st.button(
+        f"🌊 CONFIRMAR REPORTE ({bairro_atual.get('votos', 0)}/{LIMITE_VOTOS_ALAGAMENTO} confirmações)",
+        type="primary",
+        use_container_width=True
+    ):
+        bairro_atual["votos"] += 1
 
-        with metrica_col1:
-            st.metric(
-                label="🌡️ Temperatura",
-                value=f"{bairro_atual.get('temperatura', 0):.1f} °C",
-                help="Temperatura atual obtida da API Open-Meteo"
+        if bairro_atual["votos"] >= LIMITE_VOTOS_ALAGAMENTO:
+            bairro_atual["status"] = "ALAGADO CONFIRMADO"
+            bairro_atual["risco"] = "Crítico"
+            st.toast("🚨 ALAGAMENTO CONFIRMADO pela comunidade!", icon="⚠️")
+        else:
+            if bairro_atual["status"] == "Normal":
+                bairro_atual["status"] = "Atenção"
+                bairro_atual["risco"] = "Médio"
+            st.toast(
+                f"✅ Reporte registrado! ({bairro_atual['votos']}/{LIMITE_VOTOS_ALAGAMENTO})",
+                icon="📢"
             )
 
-        with metrica_col2:
-            st.metric(
-                label="🌧️ Chuva Agora",
-                value=f"{bairro_atual.get('chuva_real', 0):.1f} mm",
-                help="Precipitação atual (inclui chuva, garoa, chuvisco)"
-            )
+        salvar_dados(dados)
+        st.rerun()
 
-        with metrica_col3:
-            # NOVO: Probabilidade de chuva
-            prob_chuva = bairro_atual.get('probabilidade_chuva', 0)
-            st.metric(
-                label="🎲 Chance Chuva",
-                value=f"{prob_chuva}%",
-                help="Probabilidade de precipitação na próxima hora"
-            )
+    # Barra de progresso visual
+    progresso = min(bairro_atual["votos"] / LIMITE_VOTOS_ALAGAMENTO, 1.0)
+    st.progress(progresso)
 
-        with metrica_col4:
-            st.metric(
-                label="📢 Reportes",
-                value=bairro_atual.get("votos", 0),
-                help="Número de reportes da comunidade"
-            )
+    # =========================================================================
+    # ABAS - PREVISÃO / MAPA / TODOS OS BAIRROS
+    # =========================================================================
+    st.markdown("---")
 
-        with metrica_col5:
-            st.metric(
-                label="⚡ Risco",
-                value=bairro_atual.get("risco", "Baixo"),
-                help="Classificação de risco atual"
-            )
+    tab_previsao, tab_mapa, tab_todos = st.tabs(["📈 Previsão 24h", "🗺️ Mapa", "📋 Todos os Bairros"])
 
-        st.markdown("---")
-
-        # =====================================================================
-        # BOTÃO DE REPORTE - CROWDSOURCING
-        # =====================================================================
-        st.subheader("🚨 Reportar Situação")
-        st.caption("Ajude a comunidade informando sobre alagamentos no seu bairro!")
-
-        # Botão principal de reporte
-        if st.button(
-            "🌊 REPORTAR ALAGAMENTO",
-            type="primary",  # Botão em destaque (azul)
-            use_container_width=True
-        ):
-            # Incrementa contador de votos (Crowdsourcing)
-            bairro_atual["votos"] += 1
-
-            # =================================================================
-            # REGRA DE AUTOMAÇÃO 2 (CROWDSOURCING)
-            # Aqui aplicamos a lógica de validação colaborativa:
-            # Quando o número de reportes atinge o limite configurado (5),
-            # o sistema confirma automaticamente o alagamento.
-            # Esta abordagem evita falsos positivos de reportes isolados.
-            # =================================================================
-            if bairro_atual["votos"] >= LIMITE_VOTOS_ALAGAMENTO:
-                bairro_atual["status"] = "ALAGADO CONFIRMADO"
-                bairro_atual["risco"] = "Crítico"
-                st.toast("🚨 ALAGAMENTO CONFIRMADO pela comunidade!", icon="⚠️")
-            else:
-                # Atualiza para "Atenção" se houver pelo menos 1 reporte
-                if bairro_atual["status"] == "Normal":
-                    bairro_atual["status"] = "Atenção"
-                    bairro_atual["risco"] = "Médio"
-                st.toast(
-                    f"✅ Reporte registrado! ({bairro_atual['votos']}/{LIMITE_VOTOS_ALAGAMENTO})",
-                    icon="📢"
-                )
-
-            # Persiste as alterações no arquivo JSON
-            salvar_dados(dados)
-
-            # Atualiza a interface para refletir mudanças
-            st.rerun()
-
-        # Barra de progresso visual dos votos
-        progresso = min(bairro_atual["votos"] / LIMITE_VOTOS_ALAGAMENTO, 1.0)
-        st.progress(progresso, text=f"Votos: {bairro_atual['votos']}/{LIMITE_VOTOS_ALAGAMENTO}")
-
-        st.markdown("---")
-
-        # =====================================================================
-        # GRÁFICO DE PREVISÃO HORÁRIA
-        # =====================================================================
-        st.subheader("📈 Previsão de Chuva (24h)")
-
-        # Busca dados de previsão horária para o bairro selecionado
+    # ----- ABA 1: PREVISÃO HORÁRIA -----
+    with tab_previsao:
         previsao = buscar_previsao_horaria(bairro_atual["lat"], bairro_atual["lon"])
 
         if previsao["horarios"]:
-            # Cria DataFrame para o gráfico
             df_previsao = pd.DataFrame({
                 "Horário": previsao["horarios"],
                 "Precipitação (mm)": previsao["precipitacao"],
                 "Probabilidade (%)": previsao["probabilidade"]
             })
 
-            # Gráfico de barras para precipitação
             st.bar_chart(
                 df_previsao.set_index("Horário")["Precipitação (mm)"],
                 color="#1E90FF"
             )
 
-            # Exibe tabela com detalhes em um expander
             with st.expander("📊 Ver dados detalhados"):
-                st.dataframe(df_previsao, use_container_width=True, hide_index=True)
+                st.dataframe(df_previsao, hide_index=True)
         else:
             st.warning("Não foi possível carregar a previsão horária.")
 
-        # Coordenadas do bairro (informativo)
-        with st.expander("📍 Coordenadas do Bairro"):
-            st.write(f"**Latitude:** {bairro_atual['lat']}")
-            st.write(f"**Longitude:** {bairro_atual['lon']}")
-
-    # =========================================================================
-    # COLUNA 2: MAPA GERAL DA CIDADE
-    # =========================================================================
-    with col_mapa:
-        st.subheader("🗺️ Mapa de Guarujá")
-
-        # =====================================================================
-        # PREPARAÇÃO DOS DADOS PARA O MAPA
-        # =====================================================================
-        # O componente st.map() requer um DataFrame pandas com colunas
-        # específicas: 'lat', 'lon' e opcionalmente 'size' para tamanho.
-
-        # Criamos uma lista de dicionários com os dados necessários
+    # ----- ABA 2: MAPA -----
+    with tab_mapa:
         dados_mapa = []
         for bairro in dados:
-            # Calcula o tamanho da bolinha baseado nos votos
-            # Fórmula: tamanho base (100) + votos * multiplicador (80)
-            # Isso cria visualização proporcional ao número de reportes
             tamanho = 100 + (bairro["votos"] * 80)
-
             dados_mapa.append({
                 "lat": bairro["lat"],
                 "lon": bairro["lon"],
                 "size": tamanho
             })
 
-        # Converte para DataFrame do Pandas
-        # DataFrame é a estrutura de dados tabular do Pandas
         df_mapa = pd.DataFrame(dados_mapa)
-
-        # Renderiza o mapa com st.map()
-        # O parâmetro 'size' controla o tamanho dos marcadores
         st.map(df_mapa, size="size", zoom=11)
+        st.caption("📌 Círculos maiores = Mais reportes")
 
-        # Legenda explicativa do mapa
-        st.caption("📌 **Legenda:** Círculos maiores = Mais reportes de alagamento")
-
-        # =====================================================================
-        # TABELA RESUMO DE TODOS OS BAIRROS
-        # =====================================================================
-        st.markdown("---")
-        st.subheader("📋 Resumo Geral")
-
-        # Prepara dados para tabela resumo
+    # ----- ABA 3: TODOS OS BAIRROS -----
+    with tab_todos:
         dados_tabela = []
         for bairro in dados:
             emoji = obter_emoji_status(bairro["status"])
             dados_tabela.append({
                 "Bairro": bairro["nome"],
                 "Status": f"{emoji} {bairro['status']}",
-                "Temp (°C)": f"{bairro.get('temperatura', 0):.1f}",
-                "Chuva (mm)": f"{bairro.get('chuva_real', 0):.1f}",
-                "Prob (%)": f"{bairro.get('probabilidade_chuva', 0)}",
-                "Reportes": bairro.get("votos", 0)
+                "Temp": f"{bairro.get('temperatura', 0):.1f}°C",
+                "Chuva": f"{bairro.get('chuva_real', 0):.1f}mm",
+                "Prob": f"{bairro.get('probabilidade_chuva', 0)}%",
+                "Votos": bairro.get("votos", 0)
             })
 
-        # Cria e exibe DataFrame como tabela
         df_resumo = pd.DataFrame(dados_tabela)
-
-        # st.dataframe() renderiza uma tabela interativa
-        st.dataframe(
-            df_resumo,
-            use_container_width=True,
-            hide_index=True  # Oculta índice numérico
-        )
+        st.dataframe(df_resumo, hide_index=True)
 
     # =========================================================================
     # RODAPÉ DA APLICAÇÃO
@@ -845,8 +808,7 @@ def main():
         """
         <div style="text-align: center; color: gray; font-size: 12px;">
             🎓 <b>Projeto Integrador</b> | Sistema de Monitoramento de Alagamentos<br>
-            Desenvolvido com Python + Streamlit | API: Open-Meteo<br>
-            Guarujá/SP - 2024
+            Python + Streamlit | API: Open-Meteo | Guarujá/SP
         </div>
         """,
         unsafe_allow_html=True
