@@ -39,6 +39,8 @@ Um sistema web que combina duas fontes de dados:
 | `json` | Serialização/deserialização de dados para persistência local |
 | `datetime` | Manipulação de datas e timestamps |
 | `concurrent.futures` | Execução paralela de requisições à API (otimização de performance) |
+| `pydeck` | Mapas interativos com marcadores coloridos por status |
+| `plotly` | Gráficos interativos de previsão horária |
 
 ### 2.4 API Externa
 | Serviço | URL | Função |
@@ -228,6 +230,8 @@ CACHE_TTL_SEGUNDOS = 120          # Tempo de vida do cache (2 minutos)
 |--------|-----------|
 | `obter_cor_status(status)` | Retorna cor CSS baseada no status |
 | `obter_emoji_status(status)` | Retorna emoji representativo do status |
+| `obter_cor_rgb_status(status)` | Retorna cor RGB [R,G,B,A] para mapa pydeck |
+| `buscar_previsao_horaria(lat, lon)` | Busca previsão de 24h para gráfico Plotly |
 
 ---
 
@@ -380,30 +384,50 @@ def buscar_clima_api(lat, lon):
 
 ## 8. Interface do Usuário
 
-### 8.1 Layout Geral
+### 8.1 Layout Geral (Redesign v2.0)
+
+A interface foi completamente redesenhada seguindo princípios de UX moderno, com foco em usabilidade mobile e visualização clara das informações.
 
 ```
-┌──────────────────┬─────────────────────────────────────────────────┐
-│                  │                                                 │
-│     SIDEBAR      │              ÁREA PRINCIPAL                     │
-│                  │                                                 │
-│  ┌────────────┐  │  ┌─────────────────┐  ┌─────────────────────┐  │
-│  │ Seletor de │  │  │                 │  │                     │  │
-│  │   Bairro   │  │  │  PAINEL DO      │  │   MAPA DE GUARUJÁ   │  │
-│  └────────────┘  │  │  BAIRRO         │  │                     │  │
-│                  │  │                 │  │   (Visualização     │  │
-│  ┌────────────┐  │  │  - Status       │  │    geográfica)      │  │
-│  │ Atualizar  │  │  │  - Métricas     │  │                     │  │
-│  │   Clima    │  │  │  - Botão        │  │                     │  │
-│  └────────────┘  │  │    Reportar     │  │                     │  │
-│                  │  │                 │  │                     │  │
-│  ┌────────────┐  │  └─────────────────┘  └─────────────────────┘  │
-│  │  Resetar   │  │                                                 │
-│  │   Votos    │  │  ┌───────────────────────────────────────────┐  │
-│  └────────────┘  │  │           TABELA RESUMO                    │  │
-│                  │  │         (Todos os bairros)                 │  │
-│                  │  └───────────────────────────────────────────┘  │
-└──────────────────┴─────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                    🌊 Monitor de Alagamentos                         │
+│                    Guarujá/SP • Dados em tempo real                  │
+├─────────────────────────────────────────────────────────────────────┤
+│                    📊 SITUAÇÃO ATUAL DA CIDADE                       │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐            │
+│  │    12    │  │    2     │  │    1     │  │    0     │            │
+│  │ Normais  │  │ Atenção  │  │  Risco   │  │ Alagados │            │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘            │
+├─────────────────────────────────────────────────────────────────────┤
+│  📍 Selecione seu Bairro: [Pitangueiras ▼]                          │
+├─────────────────────────────────────────────────────────────────────┤
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │           ✅ NORMAL - 📍 Pitangueiras                        │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │
+│  │ 🌡️ 26.5°C   │  │ 🌧️ 0.0mm    │  │ 🎲 45%       │              │
+│  │ Temperatura  │  │ Chuva Agora  │  │ Chance Chuva │              │
+│  └──────────────┘  └──────────────┘  └──────────────┘              │
+│                                                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │       🚨 CONFIRMAR REPORTE (2/5 confirmações)                │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│  [████████░░░░░░░░░░░░░░░░░░░░░░░] 40%                             │
+├─────────────────────────────────────────────────────────────────────┤
+│  ┌──────────────┬──────────────┬──────────────────┐                │
+│  │ 📈 Previsão  │ 🗺️ Mapa     │ 📋 Todos Bairros │                │
+│  └──────────────┴──────────────┴──────────────────┘                │
+│                    [CONTEÚDO DA ABA]                                │
+└─────────────────────────────────────────────────────────────────────┘
+│                                                                     │
+│  SIDEBAR (Admin - Escondido por padrão)                            │
+│  ┌──────────────────────┐                                          │
+│  │ 🔧 Controles Admin   │                                          │
+│  │ [🔄 Atualizar Clima] │                                          │
+│  │ [🗑️ Resetar Votos]  │                                          │
+│  └──────────────────────┘                                          │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ### 8.2 Métricas Exibidas no Painel do Bairro
@@ -416,32 +440,95 @@ def buscar_clima_api(lat, lon):
 | Reportes | 📢 | Número de votos da comunidade |
 | Risco | ⚡ | Nível de risco atual |
 
-### 8.3 Componentes Streamlit Utilizados
+### 8.3 Abas de Conteúdo
+
+A interface utiliza um sistema de abas para organizar as informações:
+
+#### Aba 1: Previsão 24h (Gráfico Interativo Plotly)
+
+Gráfico interativo com duas séries de dados:
+
+| Elemento | Descrição |
+|----------|-----------|
+| Área azul | Precipitação prevista (mm) - eixo Y esquerdo |
+| Linha laranja pontilhada | Probabilidade de chuva (%) - eixo Y direito |
+| Linha verde vertical | Indicador da hora atual |
+| Faixa vermelha | Zona de risco (precipitação > 10mm) |
+
+**Cards informativos abaixo do gráfico:**
+- **Pico de Chuva**: Maior precipitação prevista e horário
+- **Máx. Probabilidade**: Maior chance de chuva do dia
+- **Total Acumulado**: Soma da precipitação nas próximas 24h
+
+#### Aba 2: Mapa Interativo (Pydeck)
+
+Mapa com marcadores coloridos por status usando a biblioteca Pydeck:
+
+| Cor do Marcador | Status |
+|-----------------|--------|
+| 🟢 Verde | Normal |
+| 🟡 Amarelo | Atenção |
+| 🟠 Laranja | Risco Meteorológico |
+| 🔴 Vermelho | ALAGADO CONFIRMADO |
+
+**Características:**
+- Raio do marcador aumenta conforme número de votos
+- Tooltip ao passar o mouse mostrando nome e status
+- Legenda de cores abaixo do mapa
+
+#### Aba 3: Todos os Bairros
+
+Tabela resumo com todos os 15 bairros mostrando:
+- Nome do bairro
+- Status com emoji
+- Temperatura
+- Precipitação atual
+- Probabilidade de chuva
+- Número de votos
+
+### 8.4 Componentes Streamlit Utilizados
 
 | Componente | Função no Sistema |
 |------------|-------------------|
 | `st.title()` | Título principal da aplicação |
-| `st.sidebar` | Menu lateral com controles |
+| `st.sidebar` | Menu lateral com controles admin (escondido) |
 | `st.selectbox()` | Seleção de bairro |
 | `st.button()` | Botões de ação (Reportar, Atualizar) |
-| `st.metric()` | Exibição de métricas (5 métricas no painel) |
-| `st.map()` | Mapa interativo com marcadores |
-| `st.dataframe()` | Tabela de dados com coluna de probabilidade |
+| `st.metric()` | Exibição de métricas (3 métricas no painel) |
+| `st.tabs()` | Sistema de abas (Previsão/Mapa/Todos) |
+| `st.plotly_chart()` | Gráfico interativo de previsão |
+| `st.pydeck_chart()` | Mapa interativo com cores |
+| `st.dataframe()` | Tabela de dados |
 | `st.toast()` | Notificações temporárias |
-| `st.progress()` | Barra de progresso |
-| `st.columns()` | Layout em colunas |
-| `st.markdown()` | Textos formatados e HTML |
+| `st.progress()` | Barra de progresso de votos |
+| `st.columns()` | Layout em colunas responsivo |
+| `st.markdown()` | Cards estilizados com HTML/CSS |
+| `st.expander()` | Controles admin escondidos |
 | `st.fragment()` | Atualização automática a cada 10 minutos |
 | `st.cache_data()` | Cache de requisições à API |
 
-### 8.4 Sistema de Cores (UX)
+### 8.5 Sistema de Cores (UX)
 
-| Status | Cor | Significado |
-|--------|-----|-------------|
-| Normal | 🟢 Verde | Situação segura |
-| Atenção | 🟡 Amarelo/Laranja | Requer monitoramento |
-| Risco Meteorológico | 🟠 Laranja | Alerta da API |
-| ALAGADO CONFIRMADO | 🔴 Vermelho | Situação crítica |
+| Status | Cor | RGB (Mapa) | Significado |
+|--------|-----|------------|-------------|
+| Normal | 🟢 Verde | [40, 167, 69] | Situação segura |
+| Atenção | 🟡 Amarelo | [255, 193, 7] | Requer monitoramento |
+| Risco Meteorológico | 🟠 Laranja | [253, 126, 20] | Alerta da API |
+| ALAGADO CONFIRMADO | 🔴 Vermelho | [220, 53, 69] | Situação crítica |
+
+### 8.6 Cards de Resumo da Cidade
+
+No topo da página, 4 cards mostram a situação geral:
+
+```
+┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐
+│   12     │  │    2     │  │    1     │  │    0     │
+│ Normais  │  │ Atenção  │  │  Risco   │  │ Alagados │
+│  (verde) │  │(amarelo) │  │ (laranja)│  │(vermelho)│
+└──────────┘  └──────────┘  └──────────┘  └──────────┘
+```
+
+Cada card usa gradiente de cores para destaque visual.
 
 ---
 
@@ -604,7 +691,12 @@ source venv/bin/activate
 
 #### Passo 4: Instalar dependências
 ```bash
-pip install streamlit requests pandas
+pip install streamlit requests pandas pydeck plotly
+```
+
+Ou utilizando o arquivo requirements.txt:
+```bash
+pip install -r requirements.txt
 ```
 
 #### Passo 5: Criar arquivo de dados inicial
@@ -675,7 +767,9 @@ O uso de tecnologias modernas como Python, Streamlit e APIs REST permite desenvo
 2. **Open-Meteo API** - https://open-meteo.com/en/docs
 3. **Python Requests Library** - https://requests.readthedocs.io/
 4. **Pandas Documentation** - https://pandas.pydata.org/docs/
-5. **PEP 668 - Externally Managed Environments** - https://peps.python.org/pep-0668/
+5. **Pydeck Documentation** - https://pydeck.gl/
+6. **Plotly Python Documentation** - https://plotly.com/python/
+7. **PEP 668 - Externally Managed Environments** - https://peps.python.org/pep-0668/
 
 ---
 
@@ -690,3 +784,6 @@ O uso de tecnologias modernas como Python, Streamlit e APIs REST permite desenvo
 |------|--------|------------|
 | Fev/2024 | 1.0 | Versão inicial do documento |
 | Fev/2026 | 2.0 | Adicionadas otimizações de performance (chamadas paralelas, cache, session_state), nova métrica de probabilidade de chuva, regra de automação por probabilidade, atualização da integração com API Open-Meteo |
+| Fev/2026 | 2.1 | Redesign completo da interface (Fase 1): cards de resumo da cidade, seletor de bairro na área principal, controles admin escondidos na sidebar, sistema de abas |
+| Fev/2026 | 2.2 | Mapa interativo com cores (Fase 2): integração com pydeck, marcadores coloridos por status, tooltip interativo, legenda de cores |
+| Fev/2026 | 2.3 | Gráfico de previsão horária com Plotly: área para precipitação, linha para probabilidade, indicador de hora atual, zona de risco, cards informativos |
