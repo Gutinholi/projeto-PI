@@ -820,15 +820,27 @@ def main():
             ))
 
             # Linha vertical indicando a hora atual
-            fig.add_vline(
-                x=hora_atual_str,
-                line_width=2,
-                line_dash="dash",
-                line_color="#00FF00",
-                annotation_text="Agora",
-                annotation_position="top",
-                annotation_font_color="#00FF00"
-            )
+            # Usando add_shape ao invés de add_vline para evitar erro com eixo categórico
+            if hora_atual_str in df_previsao["Horário"].values:
+                idx_hora_atual = df_previsao[df_previsao["Horário"] == hora_atual_str].index[0]
+                fig.add_shape(
+                    type="line",
+                    x0=hora_atual_str,
+                    x1=hora_atual_str,
+                    y0=0,
+                    y1=1,
+                    yref="paper",
+                    line=dict(color="#00FF00", width=2, dash="dash")
+                )
+                # Anotação separada para "Agora"
+                fig.add_annotation(
+                    x=hora_atual_str,
+                    y=1.05,
+                    yref="paper",
+                    text="Agora",
+                    showarrow=False,
+                    font=dict(color="#00FF00", size=12)
+                )
 
             # Faixa de risco (precipitação acima de 10mm)
             fig.add_hrect(
@@ -854,16 +866,14 @@ def main():
                     gridcolor='rgba(128,128,128,0.2)'
                 ),
                 yaxis=dict(
-                    title="Precipitação (mm)",
-                    titlefont=dict(color='#1E90FF'),
+                    title=dict(text="Precipitação (mm)", font=dict(color='#1E90FF')),
                     tickfont=dict(color='#1E90FF'),
                     showgrid=True,
                     gridcolor='rgba(128,128,128,0.2)',
                     rangemode='tozero'
                 ),
                 yaxis2=dict(
-                    title="Probabilidade (%)",
-                    titlefont=dict(color='#FF6B35'),
+                    title=dict(text="Probabilidade (%)", font=dict(color='#FF6B35')),
                     tickfont=dict(color='#FF6B35'),
                     overlaying='y',
                     side='right',
