@@ -32,16 +32,3 @@ O projeto foi construído utilizando **Python** como linguagem base, priorizando
 | **Gráficos** | [Plotly](https://plotly.com/) | Gráficos dinâmicos de previsão meteorológica. |
 | **Concorrência** | `concurrent.futures` | Paralelismo para otimização de requisições HTTP. |
 | **Persistência** | JSON | Armazenamento leve de estado (NoSQL approach para MVP). |
-
----
-
-## 🏗️ Arquitetura e Design
-
-O sistema segue o padrão de **Arquitetura em Camadas** para garantir desacoplamento e facilidade de manutenção:
-
-```mermaid
-graph TD
-    User[Usuário / Navegador] --> UI[Camada de Apresentação (Streamlit)]
-    UI --> Service[Camada de Serviço (Lógica de Negócio)]
-    Service --> API[API Open-Meteo]
-    Service --> Data[Camada de Dados (JSON)]
