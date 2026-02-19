@@ -63,7 +63,16 @@ import plotly.graph_objects as go
 # Datetime: Módulo nativo para manipulação de datas e horários.
 # Utilizado para registrar timestamps das atualizações.
 # timedelta: Utilizado para definir intervalos de tempo na atualização automática.
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+# Zoneinfo: Módulo para manipulação de fusos horários (Python 3.9+)
+# Utilizado para garantir que todos os horários estejam em UTC-3 (Brasília)
+try:
+    from zoneinfo import ZoneInfo
+    FUSO_BRASILIA = ZoneInfo("America/Sao_Paulo")
+except ImportError:
+    # Fallback para sistemas sem zoneinfo
+    FUSO_BRASILIA = timezone(timedelta(hours=-3))
 
 # OS: Módulo nativo para interação com o sistema operacional.
 # Utilizado para obter o caminho absoluto do diretório do script.
@@ -104,11 +113,21 @@ LIMITE_VOTOS_ALAGAMENTO = 5   # Mínimo de votos para confirmar alagamento
 LIMITE_CHUVA_RISCO = 10.0     # Precipitação (mm) que dispara alerta automático
 INTERVALO_ATUALIZACAO = 1     # Intervalo em minutos para atualização automática do clima
 MAX_WORKERS_API = 5           # Número máximo de requisições paralelas à API
-CACHE_TTL_SEGUNDOS = 120      # Tempo de vida do cache em segundos (2 minutos)
+CACHE_TTL_SEGUNDOS = 60       # Tempo de vida do cache em segundos (1 minuto)
 
 # URL base da API Open-Meteo (serviço gratuito de dados meteorológicos)
 # Documentação: https://open-meteo.com/en/docs
 API_OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
+
+
+def agora_brasilia():
+    """
+    Retorna o horário atual no fuso horário de Brasília (UTC-3).
+
+    Utiliza zoneinfo para garantir consistência em todas as operações
+    de data/hora do sistema, independente do timezone do servidor.
+    """
+    return datetime.now(FUSO_BRASILIA)
 
 # =============================================================================
 # CONEXÃO COM SUPABASE
@@ -184,7 +203,7 @@ def salvar_bairro(bairro):
             "temperatura": bairro.get("temperatura", 0),
             "probabilidade_chuva": bairro.get("probabilidade_chuva", 0),
             "precipitacao_proxima_hora": bairro.get("precipitacao_proxima_hora", 0),
-            "updated_at": datetime.now().isoformat()
+            "updated_at": agora_brasilia().isoformat()
         }).eq("id", bairro["id"]).execute()
     except Exception as erro:
         st.error(f"❌ Erro ao salvar dados: {erro}")
@@ -295,8 +314,8 @@ def buscar_clima_api(lat, lon):
         probabilidades = hourly.get("precipitation_probability", [])
         precipitacoes_hora = hourly.get("precipitation", [])
 
-        # Pega a hora atual para indexar os dados horários
-        hora_atual = datetime.now().hour
+        # Pega a hora atual (Brasília) para indexar os dados horários
+        hora_atual = agora_brasilia().hour
         probabilidade = probabilidades[hora_atual] if hora_atual < len(probabilidades) else 0
         precip_proxima_hora = precipitacoes_hora[hora_atual] if hora_atual < len(precipitacoes_hora) else 0.0
 
@@ -460,7 +479,7 @@ def atualizar_clima_automatico():
     """
     Fragmento que atualiza automaticamente os dados meteorológicos.
 
-    Executa a cada INTERVALO_ATUALIZACAO minutos (padrão: 10 minutos).
+    Executa a cada INTERVALO_ATUALIZACAO minutos (padrão: 1 minuto).
     Utiliza o recurso de fragmentos do Streamlit para atualização parcial
     da página, evitando recarregamento completo da interface.
 
@@ -474,14 +493,20 @@ def atualizar_clima_automatico():
         - Não interfere na navegação do usuário
         - Eficiente em termos de recursos (atualiza apenas o necessário)
     """
+    # Limpa o cache da API para buscar dados frescos
+    buscar_clima_api.clear()
+
+    # Invalida cache de dados do Supabase
+    invalidar_cache_dados()
+
     dados = obter_dados_otimizado()
 
     if dados:
         dados = atualizar_clima_todos_bairros(dados)
         salvar_dados(dados)
 
-        # Armazena timestamp da última atualização automática
-        st.session_state.ultima_atualizacao_auto = datetime.now()
+        # Armazena timestamp da última atualização automática (horário de Brasília)
+        st.session_state.ultima_atualizacao_auto = agora_brasilia()
 
 
 # =============================================================================
@@ -567,8 +592,8 @@ def registrar_evento_historico(bairro, tipo_evento, detalhes=""):
         supabase.table("historico").insert({
             "bairro_id": bairro["id"],
             "bairro_nome": bairro["nome"],
-            "data": datetime.now().strftime("%Y-%m-%d"),
-            "hora": datetime.now().strftime("%H:%M:%S"),
+            "data": agora_brasilia().strftime("%Y-%m-%d"),
+            "hora": agora_brasilia().strftime("%H:%M:%S"),
             "tipo": tipo_evento,
             "detalhes": detalhes
         }).execute()
@@ -692,45 +717,81 @@ def main():
     )
 
     # =========================================================================
-    # SIDEBAR - APENAS ADMIN (ESCONDIDO)
+    # SIDEBAR - INFORMAÇÕES E ADMIN PROTEGIDO
     # =========================================================================
     with st.sidebar:
-        st.markdown("### ⚙️ Painel Administrativo")
-
-        with st.expander("🔧 Controles Admin", expanded=False):
-            # Botão para atualização manual dos dados meteorológicos
-            if st.button("🔄 Atualizar Clima (API)", use_container_width=True):
-                with st.spinner("Consultando API Open-Meteo..."):
-                    buscar_clima_api.clear()
-                    dados = atualizar_clima_todos_bairros(dados)
-                    salvar_dados(dados)
-                st.toast("✅ Dados meteorológicos atualizados!", icon="🌤️")
-                st.rerun()
-
-            # Botão para resetar todos os votos
-            if st.button("🗑️ Resetar Votos", use_container_width=True):
-                for bairro in dados:
-                    # Registra normalização se estava alagado
-                    if bairro["status"] == "ALAGADO CONFIRMADO":
-                        registrar_evento_historico(
-                            bairro,
-                            "NORMALIZADO",
-                            "Status resetado pelo administrador"
-                        )
-                    bairro["votos"] = 0
-                    bairro["status"] = "Normal"
-                    bairro["risco"] = "Baixo"
-                salvar_dados(dados)
-                st.toast("✅ Votos resetados!", icon="🔄")
-                st.rerun()
-
-        # Informações do sistema na sidebar
-        st.markdown("---")
+        # Informações públicas do sistema
+        st.markdown("### ℹ️ Informações")
         st.caption(f"🔄 Atualização: a cada {INTERVALO_ATUALIZACAO} min")
         if "ultima_atualizacao_auto" in st.session_state and st.session_state.ultima_atualizacao_auto:
             ultima = st.session_state.ultima_atualizacao_auto.strftime('%H:%M:%S')
             st.caption(f"⏱️ Última: {ultima}")
         st.caption(f"📍 {len(dados)} bairros monitorados")
+
+        st.markdown("---")
+
+        # Área de login admin (protegida por senha)
+        with st.expander("🔐 Área Administrativa", expanded=False):
+            # Verifica se já está autenticado
+            if "admin_autenticado" not in st.session_state:
+                st.session_state.admin_autenticado = False
+
+            if not st.session_state.admin_autenticado:
+                # Campo de senha
+                senha_digitada = st.text_input(
+                    "Senha de administrador:",
+                    type="password",
+                    key="senha_admin"
+                )
+
+                if st.button("🔓 Entrar", use_container_width=True):
+                    # Verifica a senha (armazenada nos secrets)
+                    senha_correta = st.secrets.get("ADMIN_PASSWORD", "admin123")
+                    if senha_digitada == senha_correta:
+                        st.session_state.admin_autenticado = True
+                        st.toast("✅ Acesso liberado!", icon="🔓")
+                        st.rerun()
+                    else:
+                        st.error("❌ Senha incorreta!")
+            else:
+                # Usuário autenticado - mostra controles admin
+                st.success("✅ Logado como Admin")
+
+                if st.button("🚪 Sair", use_container_width=True):
+                    st.session_state.admin_autenticado = False
+                    st.rerun()
+
+                st.markdown("---")
+
+                # Botão para atualização manual dos dados meteorológicos
+                if st.button("🔄 Atualizar Clima (API)", use_container_width=True):
+                    with st.spinner("Consultando API Open-Meteo..."):
+                        # Limpa todos os caches para forçar dados frescos
+                        buscar_clima_api.clear()
+                        buscar_previsao_horaria.clear()
+                        invalidar_cache_dados()
+                        dados = atualizar_clima_todos_bairros(dados)
+                        salvar_dados(dados)
+                        st.session_state.ultima_atualizacao_auto = agora_brasilia()
+                    st.toast("✅ Dados meteorológicos atualizados!", icon="🌤️")
+                    st.rerun()
+
+                # Botão para resetar todos os votos
+                if st.button("🗑️ Resetar Votos", use_container_width=True):
+                    for bairro in dados:
+                        # Registra normalização se estava alagado
+                        if bairro["status"] == "ALAGADO CONFIRMADO":
+                            registrar_evento_historico(
+                                bairro,
+                                "NORMALIZADO",
+                                "Status resetado pelo administrador"
+                            )
+                        bairro["votos"] = 0
+                        bairro["status"] = "Normal"
+                        bairro["risco"] = "Baixo"
+                    salvar_dados(dados)
+                    st.toast("✅ Votos resetados!", icon="🔄")
+                    st.rerun()
 
     # =========================================================================
     # LOCALIZA O BAIRRO SELECIONADO NOS DADOS
@@ -876,8 +937,8 @@ def main():
                 "Probabilidade (%)": previsao["probabilidade"]
             })
 
-            # Hora atual para destacar no gráfico
-            hora_atual = datetime.now().hour
+            # Hora atual (Brasília) para destacar no gráfico
+            hora_atual = agora_brasilia().hour
             hora_atual_str = f"{hora_atual:02d}:00"
 
             # Cria o gráfico interativo com Plotly
