@@ -119,6 +119,123 @@ CACHE_TTL_SEGUNDOS = 60       # Tempo de vida do cache em segundos (1 minuto)
 # Documentação: https://open-meteo.com/en/docs
 API_OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 
+# =============================================================================
+# MAPEAMENTO DE WEATHER CODES (WMO)
+# =============================================================================
+# Códigos padronizados pela Organização Meteorológica Mundial (WMO)
+# Usados para identificar condições climáticas e calcular risco de alagamento
+
+WEATHER_CODES = {
+    0: {"descricao": "Céu limpo", "emoji": "☀️", "risco": 0},
+    1: {"descricao": "Principalmente limpo", "emoji": "🌤️", "risco": 0},
+    2: {"descricao": "Parcialmente nublado", "emoji": "⛅", "risco": 0},
+    3: {"descricao": "Nublado", "emoji": "☁️", "risco": 0},
+    45: {"descricao": "Neblina", "emoji": "🌫️", "risco": 0},
+    48: {"descricao": "Neblina com geada", "emoji": "🌫️", "risco": 0},
+    51: {"descricao": "Garoa leve", "emoji": "🌦️", "risco": 1},
+    53: {"descricao": "Garoa moderada", "emoji": "🌦️", "risco": 1},
+    55: {"descricao": "Garoa intensa", "emoji": "🌧️", "risco": 2},
+    56: {"descricao": "Garoa congelante leve", "emoji": "🌨️", "risco": 1},
+    57: {"descricao": "Garoa congelante intensa", "emoji": "🌨️", "risco": 2},
+    61: {"descricao": "Chuva leve", "emoji": "🌧️", "risco": 2},
+    63: {"descricao": "Chuva moderada", "emoji": "🌧️", "risco": 3},
+    65: {"descricao": "Chuva forte", "emoji": "🌧️", "risco": 4},
+    66: {"descricao": "Chuva congelante leve", "emoji": "🌨️", "risco": 2},
+    67: {"descricao": "Chuva congelante forte", "emoji": "🌨️", "risco": 3},
+    71: {"descricao": "Neve leve", "emoji": "🌨️", "risco": 1},
+    73: {"descricao": "Neve moderada", "emoji": "🌨️", "risco": 2},
+    75: {"descricao": "Neve forte", "emoji": "❄️", "risco": 2},
+    77: {"descricao": "Grãos de neve", "emoji": "❄️", "risco": 1},
+    80: {"descricao": "Pancadas leves", "emoji": "🌦️", "risco": 2},
+    81: {"descricao": "Pancadas moderadas", "emoji": "🌧️", "risco": 3},
+    82: {"descricao": "Pancadas violentas", "emoji": "⛈️", "risco": 5},
+    85: {"descricao": "Pancadas de neve leves", "emoji": "🌨️", "risco": 2},
+    86: {"descricao": "Pancadas de neve fortes", "emoji": "❄️", "risco": 3},
+    95: {"descricao": "Tempestade", "emoji": "⛈️", "risco": 5},
+    96: {"descricao": "Tempestade com granizo leve", "emoji": "⛈️", "risco": 5},
+    99: {"descricao": "Tempestade com granizo forte", "emoji": "⛈️", "risco": 5},
+}
+
+
+def obter_info_weather_code(code):
+    """
+    Retorna informações sobre o código de clima (WMO Weather Code).
+
+    Parâmetros:
+        code (int): Código de clima da API Open-Meteo
+
+    Retorno:
+        dict: Dicionário com descrição, emoji e nível de risco (0-5)
+    """
+    return WEATHER_CODES.get(code, {"descricao": "Desconhecido", "emoji": "❓", "risco": 0})
+
+
+def calcular_risco_alagamento(clima_data):
+    """
+    Calcula o nível de risco de alagamento baseado em múltiplos fatores.
+
+    Combina dados de precipitação, weather_code, umidade e tipo de chuva
+    para uma avaliação mais precisa do risco.
+
+    Parâmetros:
+        clima_data (dict): Dados climáticos retornados por buscar_clima_api()
+
+    Retorno:
+        tuple: (nivel_risco: str, pontuacao: int)
+               nivel_risco: "Baixo", "Médio", "Alto" ou "Crítico"
+               pontuacao: 0-100 representando a gravidade
+    """
+    pontuacao = 0
+
+    # Fator 1: Precipitação atual (peso alto)
+    precipitacao = clima_data.get("chuva", 0.0)
+    if precipitacao > 20:
+        pontuacao += 40
+    elif precipitacao > 10:
+        pontuacao += 30
+    elif precipitacao > 5:
+        pontuacao += 20
+    elif precipitacao > 0:
+        pontuacao += 10
+
+    # Fator 2: Pancadas de chuva (peso alto - causa alagamentos rápidos)
+    showers = clima_data.get("showers", 0.0)
+    if showers > 10:
+        pontuacao += 25
+    elif showers > 5:
+        pontuacao += 15
+    elif showers > 0:
+        pontuacao += 5
+
+    # Fator 3: Weather code (peso médio)
+    weather_code = clima_data.get("weather_code", 0)
+    info_clima = obter_info_weather_code(weather_code)
+    pontuacao += info_clima["risco"] * 5  # 0-25 pontos
+
+    # Fator 4: Umidade do ar (peso baixo - solo saturado)
+    umidade = clima_data.get("umidade", 0)
+    if umidade > 90:
+        pontuacao += 10
+    elif umidade > 80:
+        pontuacao += 5
+
+    # Fator 5: Probabilidade de chuva nas próximas horas
+    prob_max = clima_data.get("prob_max_dia", 0)
+    if prob_max > 80:
+        pontuacao += 10
+    elif prob_max > 60:
+        pontuacao += 5
+
+    # Classifica o risco
+    if pontuacao >= 60:
+        return ("Crítico", pontuacao)
+    elif pontuacao >= 40:
+        return ("Alto", pontuacao)
+    elif pontuacao >= 20:
+        return ("Médio", pontuacao)
+    else:
+        return ("Baixo", pontuacao)
+
 
 def agora_brasilia():
     """
@@ -278,15 +395,20 @@ def buscar_clima_api(lat, lon):
     """
     # Montagem dos parâmetros da requisição HTTP GET
     # Aqui consumimos a API REST da Open-Meteo
-    # CORREÇÃO: Usando 'precipitation' (inclui garoa/chuvisco) em vez de 'rain' (só chuva forte)
-    # Também adicionamos precipitation_probability para mostrar chance de chuva
+    # ATUALIZAÇÃO: Parâmetros expandidos para maior precisão no monitoramento de alagamentos
+    # - precipitation: total de precipitação (chuva + garoa + neve)
+    # - rain: chuva de sistemas meteorológicos (frentes frias, mais contínua)
+    # - showers: pancadas de chuva convectiva (mais intensa e rápida)
+    # - weather_code: código numérico do tipo de clima (permite identificar tempestades)
+    # - relative_humidity_2m: umidade do ar (solo saturado = mais risco de alagamento)
     parametros = {
         "latitude": lat,
         "longitude": lon,
-        "current": "precipitation,temperature_2m",  # Precipitação total (não só chuva forte)
-        "hourly": "precipitation,precipitation_probability",  # Dados horários para previsão
-        "timezone": "America/Sao_Paulo",  # Fuso horário de Guarujá
-        "forecast_days": 1  # Apenas hoje para reduzir dados
+        "current": "precipitation,temperature_2m,relative_humidity_2m,rain,showers,weather_code",
+        "hourly": "precipitation,precipitation_probability,rain,showers,weather_code",
+        "daily": "precipitation_sum,precipitation_hours,precipitation_probability_max",
+        "timezone": "America/Sao_Paulo",
+        "forecast_days": 2  # 2 dias para melhor previsão
     }
 
     try:
@@ -300,61 +422,91 @@ def buscar_clima_api(lat, lon):
         # Converte a resposta JSON para dicionário Python
         dados_json = resposta.json()
 
-        # Extrai os valores de precipitação e temperatura da estrutura de dados retornada
-        # Estrutura: {"current": {"precipitation": 0.0, "temperature_2m": 25.0}, "hourly": {...}}
+        # Extrai os valores da estrutura de dados retornada
+        # Estrutura expandida com mais dados para precisão
         current = dados_json.get("current", {})
         hourly = dados_json.get("hourly", {})
+        daily = dados_json.get("daily", {})
 
-        # Precipitação atual (inclui chuva, garoa, chuvisco - mais preciso que só 'rain')
-        precipitacao = current.get("precipitation", 0.0)
+        # Dados atuais expandidos
+        precipitacao = current.get("precipitation", 0.0)  # Total (chuva + garoa + neve)
         temperatura = current.get("temperature_2m", 0.0)
+        umidade = current.get("relative_humidity_2m", 0)  # Umidade relativa (%)
+        rain = current.get("rain", 0.0)  # Chuva de frentes (contínua)
+        showers = current.get("showers", 0.0)  # Pancadas (intensas)
+        weather_code = current.get("weather_code", 0)  # Código do clima
 
-        # Probabilidade de chuva: pega a hora atual dos dados horários
-        # Os dados horários vêm em listas, pegamos o índice da hora atual
+        # Dados horários para previsão
         probabilidades = hourly.get("precipitation_probability", [])
         precipitacoes_hora = hourly.get("precipitation", [])
+        weather_codes_hora = hourly.get("weather_code", [])
+
+        # Dados diários para visão geral
+        precip_total_dia = daily.get("precipitation_sum", [0.0])[0] if daily.get("precipitation_sum") else 0.0
+        horas_chuva = daily.get("precipitation_hours", [0])[0] if daily.get("precipitation_hours") else 0
+        prob_max_dia = daily.get("precipitation_probability_max", [0])[0] if daily.get("precipitation_probability_max") else 0
 
         # Pega a hora atual (Brasília) para indexar os dados horários
         hora_atual = agora_brasilia().hour
         probabilidade = probabilidades[hora_atual] if hora_atual < len(probabilidades) else 0
         precip_proxima_hora = precipitacoes_hora[hora_atual] if hora_atual < len(precipitacoes_hora) else 0.0
+        weather_code_proxima_hora = weather_codes_hora[hora_atual] if hora_atual < len(weather_codes_hora) else 0
 
         return {
             "chuva": precipitacao,
             "temperatura": temperatura,
             "probabilidade_chuva": probabilidade,
-            "precipitacao_proxima_hora": precip_proxima_hora
+            "precipitacao_proxima_hora": precip_proxima_hora,
+            # Novos campos para maior precisão
+            "umidade": umidade,
+            "rain": rain,  # Chuva contínua
+            "showers": showers,  # Pancadas
+            "weather_code": weather_code,
+            "weather_code_proxima_hora": weather_code_proxima_hora,
+            "precip_total_dia": precip_total_dia,
+            "horas_chuva": horas_chuva,
+            "prob_max_dia": prob_max_dia
         }
 
     except requests.RequestException as erro:
         # Log do erro para debugging (aparece no terminal do Streamlit)
         print(f"[ERRO API] Falha ao consultar Open-Meteo: {erro}")
-        return {"chuva": 0.0, "temperatura": 0.0, "probabilidade_chuva": 0, "precipitacao_proxima_hora": 0.0}
+        return {
+            "chuva": 0.0, "temperatura": 0.0, "probabilidade_chuva": 0, "precipitacao_proxima_hora": 0.0,
+            "umidade": 0, "rain": 0.0, "showers": 0.0, "weather_code": 0, "weather_code_proxima_hora": 0,
+            "precip_total_dia": 0.0, "horas_chuva": 0, "prob_max_dia": 0
+        }
     except (KeyError, TypeError, IndexError) as erro:
         print(f"[ERRO API] Resposta inesperada da API: {erro}")
-        return {"chuva": 0.0, "temperatura": 0.0, "probabilidade_chuva": 0, "precipitacao_proxima_hora": 0.0}
+        return {
+            "chuva": 0.0, "temperatura": 0.0, "probabilidade_chuva": 0, "precipitacao_proxima_hora": 0.0,
+            "umidade": 0, "rain": 0.0, "showers": 0.0, "weather_code": 0, "weather_code_proxima_hora": 0,
+            "precip_total_dia": 0.0, "horas_chuva": 0, "prob_max_dia": 0
+        }
 
 
 @st.cache_data(ttl=CACHE_TTL_SEGUNDOS, show_spinner=False)
 def buscar_previsao_horaria(lat, lon):
     """
-    Busca previsão horária de precipitação para as próximas 24 horas.
+    Busca previsão horária de precipitação para as próximas 48 horas.
 
-    Utilizado para gerar o gráfico de previsão de chuva.
+    ATUALIZAÇÃO: Inclui dados de rain, showers e weather_code para
+    maior precisão na previsão de alagamentos.
 
     Parâmetros:
         lat (float): Latitude do local
         lon (float): Longitude do local
 
     Retorno:
-        dict: Dicionário com listas de horas, precipitação e probabilidade
+        dict: Dicionário com listas de horas, precipitação, probabilidade,
+              rain, showers e weather_code
     """
     parametros = {
         "latitude": lat,
         "longitude": lon,
-        "hourly": "precipitation,precipitation_probability",
+        "hourly": "precipitation,precipitation_probability,rain,showers,weather_code",
         "timezone": "America/Sao_Paulo",
-        "forecast_days": 1
+        "forecast_days": 2  # 48 horas de previsão
     }
 
     try:
@@ -370,11 +522,17 @@ def buscar_previsao_horaria(lat, lon):
 
         precipitacoes = hourly.get("precipitation", [])
         probabilidades = hourly.get("precipitation_probability", [])
+        rain = hourly.get("rain", [])  # Chuva contínua
+        showers = hourly.get("showers", [])  # Pancadas intensas
+        weather_codes = hourly.get("weather_code", [])  # Código do clima
 
         return {
             "horarios": horarios,
             "precipitacao": precipitacoes,
-            "probabilidade": probabilidades
+            "probabilidade": probabilidades,
+            "rain": rain,
+            "showers": showers,
+            "weather_code": weather_codes
         }
 
     except Exception as erro:
@@ -382,7 +540,10 @@ def buscar_previsao_horaria(lat, lon):
         return {
             "horarios": [],
             "precipitacao": [],
-            "probabilidade": []
+            "probabilidade": [],
+            "rain": [],
+            "showers": [],
+            "weather_code": []
         }
 
 
@@ -443,26 +604,44 @@ def atualizar_clima_todos_bairros(dados):
     # Atualiza os dados dos bairros com os resultados obtidos
     for bairro in dados:
         clima = resultados_clima.get(bairro["id"], {
-            "chuva": 0.0,
-            "temperatura": 0.0,
-            "probabilidade_chuva": 0,
-            "precipitacao_proxima_hora": 0.0
+            "chuva": 0.0, "temperatura": 0.0, "probabilidade_chuva": 0,
+            "precipitacao_proxima_hora": 0.0, "umidade": 0, "rain": 0.0,
+            "showers": 0.0, "weather_code": 0, "weather_code_proxima_hora": 0,
+            "precip_total_dia": 0.0, "horas_chuva": 0, "prob_max_dia": 0
         })
+
+        # Atualiza campos básicos
         bairro["chuva_real"] = clima["chuva"]
         bairro["temperatura"] = clima["temperatura"]
         bairro["probabilidade_chuva"] = clima.get("probabilidade_chuva", 0)
         bairro["precipitacao_proxima_hora"] = clima.get("precipitacao_proxima_hora", 0.0)
 
-        # REGRA DE AUTOMAÇÃO 1: Alerta automático por dados meteorológicos
-        # Se a precipitação atual exceder o limite configurado (10mm), o sistema
-        # automaticamente altera o status para alertar a população.
-        # NOVO: Também alerta se probabilidade de chuva for muito alta (>80%)
-        if clima["chuva"] > LIMITE_CHUVA_RISCO:
-            bairro["status"] = "Risco Meteorológico"
-            bairro["risco"] = "Alto"
-        elif clima.get("probabilidade_chuva", 0) >= 80 and bairro["status"] == "Normal":
-            bairro["status"] = "Atenção"
-            bairro["risco"] = "Médio"
+        # Atualiza novos campos para maior precisão
+        bairro["umidade"] = clima.get("umidade", 0)
+        bairro["rain"] = clima.get("rain", 0.0)
+        bairro["showers"] = clima.get("showers", 0.0)
+        bairro["weather_code"] = clima.get("weather_code", 0)
+        bairro["precip_total_dia"] = clima.get("precip_total_dia", 0.0)
+        bairro["horas_chuva"] = clima.get("horas_chuva", 0)
+
+        # REGRA DE AUTOMAÇÃO MELHORADA: Usa cálculo de risco multi-fator
+        # Considera precipitação, pancadas, weather_code, umidade e probabilidade
+        nivel_risco, pontuacao_risco = calcular_risco_alagamento(clima)
+
+        # Não sobrescreve status se já foi confirmado alagamento pela comunidade
+        if bairro["status"] != "ALAGADO CONFIRMADO":
+            if nivel_risco == "Crítico":
+                bairro["status"] = "Risco Meteorológico"
+                bairro["risco"] = "Crítico"
+            elif nivel_risco == "Alto":
+                bairro["status"] = "Risco Meteorológico"
+                bairro["risco"] = "Alto"
+            elif nivel_risco == "Médio" and bairro["status"] == "Normal":
+                bairro["status"] = "Atenção"
+                bairro["risco"] = "Médio"
+
+        # Armazena pontuação de risco para exibição
+        bairro["pontuacao_risco"] = pontuacao_risco
 
     return dados
 
@@ -835,9 +1014,10 @@ def main():
     )
 
     # =========================================================================
-    # MÉTRICAS EM 3 COLUNAS (MOBILE-FRIENDLY)
+    # MÉTRICAS EXPANDIDAS (2 LINHAS)
     # =========================================================================
-    col_m1, col_m2, col_m3 = st.columns(3)
+    # Linha 1: Métricas principais
+    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
 
     with col_m1:
         st.metric(
@@ -856,6 +1036,50 @@ def main():
         st.metric(
             label="🎲 Chance de Chuva",
             value=f"{prob_chuva}%"
+        )
+
+    with col_m4:
+        umidade = bairro_atual.get('umidade', 0)
+        st.metric(
+            label="💧 Umidade",
+            value=f"{umidade}%"
+        )
+
+    # Linha 2: Métricas detalhadas de precipitação
+    col_m5, col_m6, col_m7, col_m8 = st.columns(4)
+
+    with col_m5:
+        # Mostra condição climática atual com emoji
+        weather_code = bairro_atual.get('weather_code', 0)
+        info_clima = obter_info_weather_code(weather_code)
+        st.metric(
+            label="🌤️ Condição",
+            value=f"{info_clima['emoji']} {info_clima['descricao'][:12]}"
+        )
+
+    with col_m6:
+        # Pancadas de chuva (mais intensas)
+        showers = bairro_atual.get('showers', 0.0)
+        st.metric(
+            label="⛈️ Pancadas",
+            value=f"{showers:.1f} mm"
+        )
+
+    with col_m7:
+        # Total previsto para o dia
+        precip_total = bairro_atual.get('precip_total_dia', 0.0)
+        st.metric(
+            label="📊 Total Dia",
+            value=f"{precip_total:.1f} mm"
+        )
+
+    with col_m8:
+        # Pontuação de risco calculada
+        pontuacao = bairro_atual.get('pontuacao_risco', 0)
+        cor_pontuacao = "🔴" if pontuacao >= 60 else "🟠" if pontuacao >= 40 else "🟡" if pontuacao >= 20 else "🟢"
+        st.metric(
+            label=f"{cor_pontuacao} Índice Risco",
+            value=f"{pontuacao}/100"
         )
 
     # =========================================================================
@@ -931,10 +1155,15 @@ def main():
         previsao = buscar_previsao_horaria(bairro_atual["lat"], bairro_atual["lon"])
 
         if previsao["horarios"]:
+            # Limita a 24 horas para visualização mais limpa
+            limite_horas = 24
             df_previsao = pd.DataFrame({
-                "Horário": previsao["horarios"],
-                "Precipitação (mm)": previsao["precipitacao"],
-                "Probabilidade (%)": previsao["probabilidade"]
+                "Horário": previsao["horarios"][:limite_horas],
+                "Precipitação (mm)": previsao["precipitacao"][:limite_horas],
+                "Probabilidade (%)": previsao["probabilidade"][:limite_horas],
+                "Chuva (mm)": previsao["rain"][:limite_horas] if previsao["rain"] else [0]*limite_horas,
+                "Pancadas (mm)": previsao["showers"][:limite_horas] if previsao["showers"] else [0]*limite_horas,
+                "Código Clima": previsao["weather_code"][:limite_horas] if previsao["weather_code"] else [0]*limite_horas
             })
 
             # Hora atual (Brasília) para destacar no gráfico
@@ -944,16 +1173,31 @@ def main():
             # Cria o gráfico interativo com Plotly
             fig = go.Figure()
 
-            # Área preenchida para precipitação (eixo Y principal)
+            # Barras empilhadas para Chuva e Pancadas (mais informativo)
+            fig.add_trace(go.Bar(
+                x=df_previsao["Horário"],
+                y=df_previsao["Chuva (mm)"],
+                name='Chuva Contínua',
+                marker_color='#1E90FF',
+                hovertemplate='<b>%{x}</b><br>Chuva: %{y:.1f} mm<extra></extra>'
+            ))
+
+            fig.add_trace(go.Bar(
+                x=df_previsao["Horário"],
+                y=df_previsao["Pancadas (mm)"],
+                name='Pancadas',
+                marker_color='#FF4500',
+                hovertemplate='<b>%{x}</b><br>Pancadas: %{y:.1f} mm<extra></extra>'
+            ))
+
+            # Linha para precipitação total (soma)
             fig.add_trace(go.Scatter(
                 x=df_previsao["Horário"],
                 y=df_previsao["Precipitação (mm)"],
                 mode='lines',
-                fill='tozeroy',
-                name='Precipitação',
-                line=dict(color='#1E90FF', width=2),
-                fillcolor='rgba(30, 144, 255, 0.3)',
-                hovertemplate='<b>%{x}</b><br>Precipitação: %{y:.1f} mm<extra></extra>'
+                name='Total',
+                line=dict(color='#4B0082', width=2),
+                hovertemplate='<b>%{x}</b><br>Total: %{y:.1f} mm<extra></extra>'
             ))
 
             # Linha para probabilidade de chuva (eixo Y secundário)
@@ -962,8 +1206,8 @@ def main():
                 y=df_previsao["Probabilidade (%)"],
                 mode='lines+markers',
                 name='Probabilidade',
-                line=dict(color='#FF6B35', width=2, dash='dot'),
-                marker=dict(size=6),
+                line=dict(color='#32CD32', width=2, dash='dot'),
+                marker=dict(size=5),
                 yaxis='y2',
                 hovertemplate='<b>%{x}</b><br>Probabilidade: %{y}%<extra></extra>'
             ))
@@ -1008,6 +1252,7 @@ def main():
                     text=f"🌧️ Previsão de Chuva - {bairro_atual['nome']}",
                     font=dict(size=18)
                 ),
+                barmode='stack',  # Barras empilhadas para chuva + pancadas
                 xaxis=dict(
                     title="Horário",
                     tickangle=45,
@@ -1022,8 +1267,8 @@ def main():
                     rangemode='tozero'
                 ),
                 yaxis2=dict(
-                    title=dict(text="Probabilidade (%)", font=dict(color='#FF6B35')),
-                    tickfont=dict(color='#FF6B35'),
+                    title=dict(text="Probabilidade (%)", font=dict(color='#32CD32')),
+                    tickfont=dict(color='#32CD32'),
                     overlaying='y',
                     side='right',
                     range=[0, 100],
@@ -1081,7 +1326,14 @@ def main():
                 """, unsafe_allow_html=True)
 
             with st.expander("📊 Ver dados detalhados"):
-                st.dataframe(df_previsao, hide_index=True)
+                # Adiciona descrição do clima para cada hora
+                df_previsao["Condição"] = df_previsao["Código Clima"].apply(
+                    lambda x: f"{obter_info_weather_code(x)['emoji']} {obter_info_weather_code(x)['descricao']}"
+                )
+                st.dataframe(
+                    df_previsao[["Horário", "Precipitação (mm)", "Chuva (mm)", "Pancadas (mm)", "Probabilidade (%)", "Condição"]],
+                    hide_index=True
+                )
         else:
             st.warning("Não foi possível carregar a previsão horária.")
 
@@ -1158,17 +1410,25 @@ def main():
         dados_tabela = []
         for bairro in dados:
             emoji = obter_emoji_status(bairro["status"])
+            weather_code = bairro.get("weather_code", 0)
+            info_clima = obter_info_weather_code(weather_code)
+            pontuacao = bairro.get("pontuacao_risco", 0)
+
             dados_tabela.append({
                 "Bairro": bairro["nome"],
                 "Status": f"{emoji} {bairro['status']}",
+                "Clima": f"{info_clima['emoji']}",
                 "Temp": f"{bairro.get('temperatura', 0):.1f}°C",
                 "Chuva": f"{bairro.get('chuva_real', 0):.1f}mm",
+                "Pancadas": f"{bairro.get('showers', 0):.1f}mm",
+                "Umidade": f"{bairro.get('umidade', 0)}%",
                 "Prob": f"{bairro.get('probabilidade_chuva', 0)}%",
+                "Risco": f"{pontuacao}/100",
                 "Votos": bairro.get("votos", 0)
             })
 
         df_resumo = pd.DataFrame(dados_tabela)
-        st.dataframe(df_resumo, hide_index=True)
+        st.dataframe(df_resumo, hide_index=True, use_container_width=True)
 
     # ----- ABA 4: HISTÓRICO DE ALAGAMENTOS -----
     with tab_historico:

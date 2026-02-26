@@ -303,46 +303,165 @@ else:
 ## 7. Integração com API Open-Meteo
 
 ### 7.1 Sobre a API
-A **Open-Meteo** é uma API gratuita e open-source que fornece dados meteorológicos em tempo real para qualquer localização do mundo.
+A **Open-Meteo** é uma API gratuita e open-source que fornece dados meteorológicos em tempo real para qualquer localização do mundo. Não requer autenticação (API Key) e possui alta disponibilidade.
+
+**Documentação oficial**: https://open-meteo.com/en/docs
 
 ### 7.2 Endpoint Utilizado
 ```
 GET https://api.open-meteo.com/v1/forecast
 ```
 
-### 7.3 Parâmetros da Requisição
+### 7.3 Parâmetros da Requisição (Versão Expandida v3.0)
+
+A partir da versão 3.0 do sistema, utilizamos parâmetros expandidos para maior precisão no monitoramento de alagamentos:
+
+#### Parâmetros Enviados
 
 | Parâmetro | Valor | Descrição |
 |-----------|-------|-----------|
-| `latitude` | -23.99 | Coordenada do bairro |
-| `longitude` | -46.25 | Coordenada do bairro |
-| `current` | precipitation,temperature_2m | Precipitação total e temperatura atual |
-| `hourly` | precipitation,precipitation_probability | Dados horários para previsão |
-| `timezone` | America/Sao_Paulo | Fuso horário local |
-| `forecast_days` | 1 | Apenas dados do dia atual |
+| `latitude` | -23.99 | Coordenada geográfica do bairro |
+| `longitude` | -46.25 | Coordenada geográfica do bairro |
+| `current` | precipitation,temperature_2m,relative_humidity_2m,rain,showers,weather_code | Dados meteorológicos atuais |
+| `hourly` | precipitation,precipitation_probability,rain,showers,weather_code | Previsão horária detalhada |
+| `daily` | precipitation_sum,precipitation_hours,precipitation_probability_max | Resumo diário |
+| `timezone` | America/Sao_Paulo | Fuso horário de Brasília (UTC-3) |
+| `forecast_days` | 2 | Previsão de 48 horas |
 
-> **Nota**: Utilizamos `precipitation` em vez de `rain` pois inclui todos os tipos de precipitação (chuva, garoa, chuvisco), fornecendo dados mais precisos.
+#### Descrição dos Campos de Dados
 
-### 7.4 Exemplo de Resposta da API
+**Dados Atuais (`current`):**
+
+| Campo | Unidade | Descrição |
+|-------|---------|-----------|
+| `precipitation` | mm | Precipitação total (chuva + garoa + neve) |
+| `temperature_2m` | °C | Temperatura a 2 metros do solo |
+| `relative_humidity_2m` | % | Umidade relativa do ar |
+| `rain` | mm | Chuva de sistemas meteorológicos (frentes frias) - mais contínua |
+| `showers` | mm | Pancadas de chuva convectiva - mais intensas e rápidas |
+| `weather_code` | código | Código WMO do tipo de clima (ver seção 7.6) |
+
+**Dados Horários (`hourly`):**
+
+| Campo | Unidade | Descrição |
+|-------|---------|-----------|
+| `precipitation` | mm | Precipitação prevista por hora |
+| `precipitation_probability` | % | Probabilidade de precipitação > 0.1mm |
+| `rain` | mm | Chuva contínua prevista por hora |
+| `showers` | mm | Pancadas previstas por hora |
+| `weather_code` | código | Código do clima previsto por hora |
+
+**Dados Diários (`daily`):**
+
+| Campo | Unidade | Descrição |
+|-------|---------|-----------|
+| `precipitation_sum` | mm | Total de precipitação prevista no dia |
+| `precipitation_hours` | horas | Quantidade de horas com chuva no dia |
+| `precipitation_probability_max` | % | Probabilidade máxima de chuva no dia |
+
+### 7.4 Diferença entre `rain` e `showers`
+
+| Tipo | Origem | Característica | Risco de Alagamento |
+|------|--------|----------------|---------------------|
+| `rain` | Frentes frias, sistemas de baixa pressão | Chuva contínua, uniforme, duradoura | Médio (acúmulo gradual) |
+| `showers` | Convecção (ar quente subindo) | Pancadas intensas, localizadas, rápidas | **Alto** (volume intenso em pouco tempo) |
+
+> **Importante para Alagamentos**: Pancadas (`showers`) têm maior peso no cálculo de risco pois causam alagamentos rápidos devido ao volume intenso em curto período.
+
+### 7.5 Exemplo de Resposta da API (Versão Expandida)
 
 ```json
 {
   "latitude": -23.99,
   "longitude": -46.25,
   "current": {
-    "time": "2026-02-05T14:00",
-    "precipitation": 1.2,
-    "temperature_2m": 26.5
+    "time": "2026-02-26T11:00",
+    "precipitation": 2.5,
+    "temperature_2m": 26.5,
+    "relative_humidity_2m": 78,
+    "rain": 1.0,
+    "showers": 1.5,
+    "weather_code": 80
   },
   "hourly": {
-    "time": ["2026-02-05T00:00", "2026-02-05T01:00", ...],
-    "precipitation": [0.0, 0.1, 0.5, 1.2, ...],
-    "precipitation_probability": [10, 25, 60, 90, ...]
+    "time": ["2026-02-26T00:00", "2026-02-26T01:00", "..."],
+    "precipitation": [0.0, 0.1, 0.5, 2.5, 5.0, "..."],
+    "precipitation_probability": [10, 25, 60, 90, 95, "..."],
+    "rain": [0.0, 0.1, 0.3, 1.0, 2.0, "..."],
+    "showers": [0.0, 0.0, 0.2, 1.5, 3.0, "..."],
+    "weather_code": [1, 2, 3, 80, 82, "..."]
+  },
+  "daily": {
+    "precipitation_sum": [45.2],
+    "precipitation_hours": [8],
+    "precipitation_probability_max": [95]
   }
 }
 ```
 
-### 7.5 Código de Consumo da API
+### 7.6 Weather Codes (Códigos WMO)
+
+A API retorna códigos padronizados pela **Organização Meteorológica Mundial (WMO)** para identificar condições climáticas. O sistema utiliza esses códigos para calcular risco e exibir informações visuais.
+
+#### Códigos Relevantes para Alagamentos
+
+| Código | Descrição | Emoji | Nível de Risco |
+|--------|-----------|-------|----------------|
+| 0 | Céu limpo | ☀️ | 0 (Nenhum) |
+| 1-3 | Parcialmente nublado | 🌤️⛅☁️ | 0 (Nenhum) |
+| 51 | Garoa leve | 🌦️ | 1 (Muito Baixo) |
+| 53 | Garoa moderada | 🌦️ | 1 (Muito Baixo) |
+| 55 | Garoa intensa | 🌧️ | 2 (Baixo) |
+| 61 | Chuva leve | 🌧️ | 2 (Baixo) |
+| 63 | Chuva moderada | 🌧️ | 3 (Médio) |
+| 65 | **Chuva forte** | 🌧️ | 4 (Alto) |
+| 80 | Pancadas leves | 🌦️ | 2 (Baixo) |
+| 81 | Pancadas moderadas | 🌧️ | 3 (Médio) |
+| 82 | **Pancadas violentas** | ⛈️ | **5 (Crítico)** |
+| 95 | **Tempestade** | ⛈️ | **5 (Crítico)** |
+| 96-99 | **Tempestade com granizo** | ⛈️ | **5 (Crítico)** |
+
+### 7.7 Sistema de Cálculo de Risco Multi-Fator
+
+O sistema calcula um **Índice de Risco de Alagamento** (0-100) combinando múltiplos fatores da API:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    CÁLCULO DE RISCO (0-100)                      │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  FATOR 1: Precipitação Atual (peso alto)                        │
+│  ├── > 20mm → +40 pontos                                        │
+│  ├── > 10mm → +30 pontos                                        │
+│  ├── > 5mm  → +20 pontos                                        │
+│  └── > 0mm  → +10 pontos                                        │
+│                                                                  │
+│  FATOR 2: Pancadas de Chuva (peso alto)                         │
+│  ├── > 10mm → +25 pontos                                        │
+│  ├── > 5mm  → +15 pontos                                        │
+│  └── > 0mm  → +5 pontos                                         │
+│                                                                  │
+│  FATOR 3: Weather Code (peso médio)                             │
+│  └── risco_wmo × 5 → 0-25 pontos                                │
+│                                                                  │
+│  FATOR 4: Umidade do Ar (peso baixo)                            │
+│  ├── > 90% → +10 pontos (solo saturado)                         │
+│  └── > 80% → +5 pontos                                          │
+│                                                                  │
+│  FATOR 5: Probabilidade Máxima do Dia                           │
+│  ├── > 80% → +10 pontos                                         │
+│  └── > 60% → +5 pontos                                          │
+│                                                                  │
+├─────────────────────────────────────────────────────────────────┤
+│  CLASSIFICAÇÃO FINAL:                                            │
+│  ├── >= 60 pontos → CRÍTICO (vermelho)                          │
+│  ├── >= 40 pontos → ALTO (laranja)                              │
+│  ├── >= 20 pontos → MÉDIO (amarelo)                             │
+│  └── < 20 pontos  → BAIXO (verde)                               │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 7.8 Código de Consumo da API (Versão 3.0)
 
 ```python
 @st.cache_data(ttl=CACHE_TTL_SEGUNDOS, show_spinner=False)
@@ -350,34 +469,68 @@ def buscar_clima_api(lat, lon):
     parametros = {
         "latitude": lat,
         "longitude": lon,
-        "current": "precipitation,temperature_2m",
-        "hourly": "precipitation,precipitation_probability",
+        "current": "precipitation,temperature_2m,relative_humidity_2m,rain,showers,weather_code",
+        "hourly": "precipitation,precipitation_probability,rain,showers,weather_code",
+        "daily": "precipitation_sum,precipitation_hours,precipitation_probability_max",
         "timezone": "America/Sao_Paulo",
-        "forecast_days": 1
+        "forecast_days": 2
     }
 
     resposta = requests.get(API_OPEN_METEO_URL, params=parametros, timeout=10)
     resposta.raise_for_status()
-
     dados_json = resposta.json()
+
     current = dados_json.get("current", {})
     hourly = dados_json.get("hourly", {})
+    daily = dados_json.get("daily", {})
 
-    # Extrai dados atuais
-    precipitacao = current.get("precipitation", 0.0)
-    temperatura = current.get("temperature_2m", 0.0)
-
-    # Extrai probabilidade da hora atual
-    hora_atual = datetime.now().hour
-    probabilidades = hourly.get("precipitation_probability", [])
-    probabilidade = probabilidades[hora_atual] if hora_atual < len(probabilidades) else 0
-
+    # Extrai dados atuais expandidos
     return {
-        "chuva": precipitacao,
-        "temperatura": temperatura,
-        "probabilidade_chuva": probabilidade,
-        "precipitacao_proxima_hora": precipitacao
+        "chuva": current.get("precipitation", 0.0),
+        "temperatura": current.get("temperature_2m", 0.0),
+        "umidade": current.get("relative_humidity_2m", 0),
+        "rain": current.get("rain", 0.0),
+        "showers": current.get("showers", 0.0),
+        "weather_code": current.get("weather_code", 0),
+        "probabilidade_chuva": hourly.get("precipitation_probability", [0])[hora_atual],
+        "precip_total_dia": daily.get("precipitation_sum", [0.0])[0],
+        "horas_chuva": daily.get("precipitation_hours", [0])[0],
+        "prob_max_dia": daily.get("precipitation_probability_max", [0])[0]
     }
+```
+
+### 7.9 Fluxo de Comunicação com a API
+
+```
+┌─────────────────┐         ┌─────────────────┐         ┌─────────────────┐
+│   APLICAÇÃO     │         │   OPEN-METEO    │         │    INTERFACE    │
+│   (app.py)      │         │      API        │         │   (Streamlit)   │
+└────────┬────────┘         └────────┬────────┘         └────────┬────────┘
+         │                           │                           │
+         │  GET /v1/forecast         │                           │
+         │  ?latitude=-23.99         │                           │
+         │  &longitude=-46.25        │                           │
+         │  &current=precipitation,  │                           │
+         │   temperature_2m,...      │                           │
+         │ ─────────────────────────>│                           │
+         │                           │                           │
+         │     JSON Response         │                           │
+         │     {current:{...},       │                           │
+         │      hourly:{...},        │                           │
+         │      daily:{...}}         │                           │
+         │ <─────────────────────────│                           │
+         │                           │                           │
+         │  calcular_risco_alagamento()                          │
+         │ ──────────────────────────────────────────────────────>
+         │                           │                           │
+         │                           │    Exibe métricas:        │
+         │                           │    - Temperatura          │
+         │                           │    - Chuva atual          │
+         │                           │    - Pancadas             │
+         │                           │    - Umidade              │
+         │                           │    - Índice de Risco      │
+         │                           │    - Condição climática   │
+         │                           │ <──────────────────────────
 ```
 
 ---
@@ -787,3 +940,4 @@ O uso de tecnologias modernas como Python, Streamlit e APIs REST permite desenvo
 | Fev/2026 | 2.1 | Redesign completo da interface (Fase 1): cards de resumo da cidade, seletor de bairro na área principal, controles admin escondidos na sidebar, sistema de abas |
 | Fev/2026 | 2.2 | Mapa interativo com cores (Fase 2): integração com pydeck, marcadores coloridos por status, tooltip interativo, legenda de cores |
 | Fev/2026 | 2.3 | Gráfico de previsão horária com Plotly: área para precipitação, linha para probabilidade, indicador de hora atual, zona de risco, cards informativos |
+| Fev/2026 | 3.0 | **Expansão da integração com API Open-Meteo**: novos parâmetros (rain, showers, weather_code, umidade, dados diários), sistema de Weather Codes WMO, cálculo de risco multi-fator (0-100), 8 métricas na interface, gráfico com barras empilhadas separando chuva contínua e pancadas, tabela expandida com mais informações |
